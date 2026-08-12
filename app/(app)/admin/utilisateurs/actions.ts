@@ -19,6 +19,28 @@ function messageErreur(erreur: unknown): string {
   return "Une erreur inconnue est survenue.";
 }
 
+export async function createRestaurant(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin"]);
+
+  const nom = String(formData.get("nom") ?? "").trim();
+  const adresse = String(formData.get("adresse") ?? "").trim();
+
+  if (!nom) throw new Error("Le nom du restaurant est obligatoire.");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("restaurants").insert({
+    nom,
+    adresse: adresse || null,
+  });
+
+  if (error) {
+    throw new Error("Impossible de créer le restaurant : " + error.message);
+  }
+
+  revalidatePath("/admin/utilisateurs");
+}
+
 export async function createUtilisateur(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);

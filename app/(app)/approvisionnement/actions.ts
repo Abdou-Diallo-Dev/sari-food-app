@@ -53,7 +53,7 @@ export async function rejeterDemande(formData: FormData): Promise<void> {
 
 export async function decaisserDemande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "comptable"]);
+  requireRole(profile, ["admin", "manager", "comptable"]);
 
   const id = String(formData.get("id") ?? "");
   const montant_decaisse = Number(formData.get("montant_decaisse"));
@@ -84,6 +84,7 @@ export async function receptionnerDemande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, [
     "admin",
+    "manager",
     "chef_patisserie",
     "chef_boulangerie",
     "chef_fastfood",

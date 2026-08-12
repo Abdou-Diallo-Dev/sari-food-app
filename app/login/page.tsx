@@ -68,14 +68,6 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           <label className="mb-3 flex flex-col gap-1.5 text-[.75rem] font-bold uppercase tracking-[.05em] text-ink-soft">
-            Restaurant
-            <select className="rounded-[11px] border border-line bg-paper px-3.5 py-2.5 text-[.98rem] font-medium normal-case tracking-normal text-ink focus:border-orange focus:outline focus:outline-2 focus:outline-orange">
-              <option>Sari Food — Almadies</option>
-              <option>Sari Food — Plateau</option>
-            </select>
-          </label>
-
-          <label className="mb-3 flex flex-col gap-1.5 text-[.75rem] font-bold uppercase tracking-[.05em] text-ink-soft">
             Identifiant
             <input
               type="text"

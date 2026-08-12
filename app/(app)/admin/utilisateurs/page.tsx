@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
+  createRestaurant,
   createUtilisateur,
   updateUtilisateur,
   toggleActifUtilisateur,
@@ -72,6 +73,47 @@ export default async function UtilisateursPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8">
       <h1 className="font-display text-2xl font-extrabold text-ink">Utilisateurs</h1>
+
+      <section className="rounded-card border border-line bg-surface p-5">
+        <h2 className="mb-4 font-display text-lg font-extrabold text-orange">Restaurants</h2>
+
+        <div className="mb-4 flex flex-col gap-2">
+          {restaurantsList.length === 0 ? (
+            <p className="text-sm text-ink-soft opacity-70">Aucun restaurant pour le moment.</p>
+          ) : (
+            restaurantsList.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-[10px] border border-line bg-paper px-3 py-2 text-sm font-bold text-ink"
+              >
+                {r.nom}
+              </div>
+            ))
+          )}
+        </div>
+
+        <form action={createRestaurant} className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <input
+            type="text"
+            name="nom"
+            required
+            placeholder="Nom (ex : Sari Food — Almadies)"
+            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+          />
+          <input
+            type="text"
+            name="adresse"
+            placeholder="Adresse (optionnel)"
+            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+          />
+          <button
+            type="submit"
+            className="rounded-[9px] border border-line px-3 py-1.5 text-sm font-bold text-ink hover:border-orange hover:text-orange sm:col-span-2"
+          >
+            Ajouter un restaurant
+          </button>
+        </form>
+      </section>
 
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-4 font-display text-lg font-extrabold text-orange">

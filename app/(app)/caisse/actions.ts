@@ -6,7 +6,7 @@ import { requireProfile, requireRole } from "@/lib/auth";
 
 export async function ouvrirSession(formData: FormData) {
   const profile = await requireProfile();
-  requireRole(profile, ["caissiere"]);
+  requireRole(profile, ["caissiere", "manager", "admin"]);
   if (!profile.restaurant_id) return;
 
   const shift = String(formData.get("shift") ?? "");
@@ -37,7 +37,7 @@ export async function ouvrirSession(formData: FormData) {
 
 export async function encaisserCommande(formData: FormData) {
   const profile = await requireProfile();
-  requireRole(profile, ["caissiere"]);
+  requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const commandeId = String(formData.get("commande_id") ?? "");
   const sessionId = String(formData.get("session_id") ?? "");
@@ -89,7 +89,7 @@ export async function encaisserCommande(formData: FormData) {
 
 export async function enregistrerDepense(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  requireRole(profile, ["caissiere"]);
+  requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const sessionId = String(formData.get("session_id") ?? "");
   const categorie_depense = String(formData.get("categorie_depense") ?? "");
@@ -125,7 +125,7 @@ export async function enregistrerDepense(formData: FormData): Promise<void> {
 
 export async function cloturerSession(formData: FormData) {
   const profile = await requireProfile();
-  requireRole(profile, ["caissiere"]);
+  requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const sessionId = String(formData.get("session_id") ?? "");
   const total_compte = Number(formData.get("total_compte"));

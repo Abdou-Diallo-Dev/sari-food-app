@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Profile } from "@/lib/auth";
 import { signOut } from "@/lib/auth-actions";
@@ -20,6 +20,7 @@ import {
   IconLogOut,
   IconMenu,
   IconClose,
+  IconArrowLeft,
 } from "@/components/icons";
 
 const LABELS_ROLE: Record<string, string> = {
@@ -58,7 +59,7 @@ function navItemsPour(role: string) {
   if (isGestion || ROLES_CUISINE.includes(role)) {
     items.push({ href: "/kds", label: "Cuisine", icon: IconChefHat });
   }
-  if (role === "caissiere") {
+  if (role === "caissiere" || isGestion) {
     items.push({ href: "/caisse", label: "Caisse", icon: IconWallet });
   }
   if (isGestion) {
@@ -95,12 +96,13 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOuvert, setMenuOuvert] = useState(false);
   const items = navItemsPour(profile.role);
 
   return (
     <div className="min-h-screen lg:flex">
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 py-3 lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
         <div className="flex items-center gap-2.5">
           <Image src="/sari-logo.png" alt="Sari Food" width={100} height={44} className="h-7 w-auto" />
         </div>
@@ -167,7 +169,18 @@ export function AppShell({
         </form>
       </aside>
 
-      <main className="min-w-0 flex-1 p-4 lg:p-8">{children}</main>
+      <main className="min-w-0 flex-1 p-4 lg:p-8">
+        {pathname !== "/" && (
+          <button
+            onClick={() => router.back()}
+            className="mb-4 flex items-center gap-1.5 text-sm font-bold text-ink-soft transition hover:text-orange"
+          >
+            <IconArrowLeft className="h-4 w-4" />
+            Retour
+          </button>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

@@ -46,8 +46,9 @@ export default async function ApprovisionnementPage() {
   requireRole(profile, ["admin", "manager", "comptable", ...ROLES_CHEF]);
 
   const canValider = profile.role === "admin" || profile.role === "manager";
-  const canDecaisser = profile.role === "admin" || profile.role === "comptable";
+  const canDecaisser = profile.role === "admin" || profile.role === "manager" || profile.role === "comptable";
   const isChef = (ROLES_CHEF as readonly string[]).includes(profile.role);
+  const peutAvoirSesDemandes = isChef || profile.role === "manager" || profile.role === "admin";
 
   const supabase = await createClient();
 
@@ -72,9 +73,11 @@ export default async function ApprovisionnementPage() {
 
   const aValider = toutes.filter((d) => d.statut === "declenchee");
   const aDecaisser = toutes.filter((d) => d.statut === "validee");
-  const mesDemandes = isChef ? toutes.filter((d) => d.chef_id === profile.id) : [];
+  const mesDemandes = peutAvoirSesDemandes
+    ? toutes.filter((d) => d.chef_id === profile.id)
+    : [];
   const historique = toutes.filter(
-    (d) => !isChef || d.chef_id !== profile.id,
+    (d) => !peutAvoirSesDemandes || d.chef_id !== profile.id,
   );
 
   return (
@@ -197,7 +200,7 @@ export default async function ApprovisionnementPage() {
         </section>
       )}
 
-      {isChef && (
+      {peutAvoirSesDemandes && (
         <section className="rounded-card border border-line bg-surface p-5">
           <h2 className="mb-3 font-bold text-ink">Mes demandes</h2>
           {mesDemandes.length === 0 ? (

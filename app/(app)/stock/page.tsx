@@ -23,6 +23,8 @@ export default async function StockPage() {
     "chef_patisserie",
     "chef_boulangerie",
     "chef_fastfood",
+    "manager",
+    "admin",
   ].includes(profile.role);
 
   const supabase = await createClient();

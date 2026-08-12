@@ -19,7 +19,7 @@ const CATEGORIES_DEPENSE = [
 
 export default async function CaissePage() {
   const profile = await requireProfile();
-  requireRole(profile, ["caissiere"]);
+  requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const supabase = await createClient();
 

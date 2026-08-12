@@ -93,7 +93,7 @@ const ROLES_CHEF = ["chef_patisserie", "chef_boulangerie", "chef_fastfood"] as c
 
 export async function declencherDemande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  requireRole(profile, [...ROLES_CHEF]);
+  requireRole(profile, [...ROLES_CHEF, "manager", "admin"]);
   if (!profile.restaurant_id) return;
 
   const ingredient_id = String(formData.get("ingredient_id") ?? "");
