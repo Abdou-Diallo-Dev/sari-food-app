@@ -88,3 +88,36 @@ export async function enregistrerMouvement(formData: FormData) {
 
   revalidatePath("/stock");
 }
+
+const ROLES_CHEF = ["chef_patisserie", "chef_boulangerie", "chef_fastfood"] as const;
+
+export async function declencherDemande(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, [...ROLES_CHEF]);
+  if (!profile.restaurant_id) return;
+
+  const ingredient_id = String(formData.get("ingredient_id") ?? "");
+  const quantite_demandee = Number(formData.get("quantite_demandee"));
+  if (!ingredient_id) throw new Error("Ingrédient introuvable.");
+  if (!Number.isFinite(quantite_demandee) || quantite_demandee <= 0) {
+    throw new Error("La quantité demandée doit être supérieure à zéro.");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("demandes_approvisionnement")
+    .insert({
+      restaurant_id: profile.restaurant_id,
+      ingredient_id,
+      chef_id: profile.id,
+      quantite_demandee,
+    })
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    throw new Error("La demande de réapprovisionnement n'a pas pu être créée.");
+  }
+
+  revalidatePath("/stock");
+  revalidatePath("/approvisionnement");
+}

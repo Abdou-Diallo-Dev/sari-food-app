@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { demarrerLigne, terminerLigne } from "./actions";
+import { IconChefHat } from "@/components/icons";
 
 const POLES = [
   { value: "patisserie", label: "Pâtisserie" },
@@ -52,6 +53,7 @@ export default async function KdsPage({
     .select(selectLigne)
     .eq("pole", pole)
     .in("statut_preparation", ["en_attente", "en_preparation"])
+    .neq("commandes.statut", "annulee")
     .order("created_at", { referencedTable: "commandes", ascending: true });
 
   if (profile.restaurant_id) {
@@ -104,7 +106,10 @@ export default async function KdsPage({
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <h1 className="font-display text-2xl font-extrabold text-ink">Cuisine</h1>
+      <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
+        <IconChefHat className="h-6 w-6 text-orange" />
+        Cuisine
+      </h1>
 
       {peutChangerDePole && (
         <div className="flex gap-2">

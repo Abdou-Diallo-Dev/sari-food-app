@@ -1,7 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { deleteCommande } from "./actions";
-import { BoutonConfirmation } from "@/components/BoutonConfirmation";
+import { annulerCommande } from "./actions";
+import { BoutonAnnulation } from "@/components/BoutonAnnulation";
 import { STATUTS_ORDRE, LABELS_STATUT } from "@/lib/commandes";
 
 type CommandeJour = {
@@ -9,6 +9,7 @@ type CommandeJour = {
   numero: number;
   canal: "sur_place" | "emporter";
   statut: string;
+  motif_annulation: string | null;
   total: number;
   created_at: string;
 };
@@ -35,7 +36,7 @@ export default async function DashboardPage() {
         await Promise.all([
           supabase
             .from("commandes")
-            .select("id, numero, canal, total, statut, created_at")
+            .select("id, numero, canal, total, statut, motif_annulation, created_at")
             .eq("restaurant_id", r.id)
             .gte("created_at", debutJourneeIso)
             .order("created_at", { ascending: false }),
@@ -151,20 +152,24 @@ export default async function DashboardPage() {
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   })}
+                                  {cmd.statut === "annulee" &&
+                                    cmd.motif_annulation &&
+                                    ` · Motif : ${cmd.motif_annulation}`}
                                 </span>
                               </span>
                               <div className="flex items-center gap-3">
                                 <span className="font-bold text-ink">
                                   {cmd.total.toLocaleString("fr-FR")} F
                                 </span>
-                                <form action={deleteCommande}>
-                                  <input type="hidden" name="id" value={cmd.id} />
-                                  <BoutonConfirmation
-                                    label="Supprimer"
-                                    confirmMessage={`Supprimer définitivement la commande n°${cmd.numero} ?`}
-                                    className="rounded-[7px] px-2 py-1 text-xs font-bold text-ink-soft hover:text-red-600"
-                                  />
-                                </form>
+                                {cmd.statut !== "payee" && cmd.statut !== "annulee" && (
+                                  <form action={annulerCommande}>
+                                    <input type="hidden" name="id" value={cmd.id} />
+                                    <BoutonAnnulation
+                                      numero={cmd.numero}
+                                      className="rounded-[7px] px-2 py-1 text-xs font-bold text-ink-soft hover:text-red-600"
+                                    />
+                                  </form>
+                                )}
                               </div>
                             </li>
                           ))}

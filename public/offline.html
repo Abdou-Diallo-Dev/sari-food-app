@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sari Food — Hors ligne</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fbf9f5;
+      color: #211c17;
+      font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      text-align: center;
+      padding: 24px;
+    }
+    .carte {
+      max-width: 360px;
+    }
+    .badge {
+      width: 160px;
+      margin: 0 auto 18px;
+    }
+    h1 {
+      font-size: 1.15rem;
+      margin: 0 0 8px;
+    }
+    p {
+      margin: 0;
+      color: #726a5d;
+      font-size: 0.9rem;
+    }
+    button {
+      margin-top: 20px;
+      border: none;
+      background: #f85000;
+      color: #fbf9f5;
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: 11px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="carte">
+    <img class="badge" src="/sari-logo.png" alt="Sari Food" />
+    <h1>Pas de connexion</h1>
+    <p>Sari Food a besoin d'une connexion internet pour afficher cette page. Reconnectez-vous puis réessayez.</p>
+    <button onclick="location.reload()">Réessayer</button>
+  </div>
+</body>
+</html>

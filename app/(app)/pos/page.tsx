@@ -2,6 +2,7 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PosClient, type ProduitPos } from "./pos-client";
 import { LABELS_STATUT } from "@/lib/commandes";
+import { IconCart } from "@/components/icons";
 
 export default async function PosPage() {
   const profile = await requireProfile();
@@ -46,7 +47,10 @@ export default async function PosPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <h1 className="font-display text-2xl font-extrabold text-ink">Prise de commande</h1>
+      <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
+        <IconCart className="h-6 w-6 text-orange" />
+        Prise de commande
+      </h1>
 
       <PosClient produits={produitsPos} />
 

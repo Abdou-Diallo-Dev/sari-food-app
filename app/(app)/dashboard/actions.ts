@@ -4,30 +4,32 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
 
-export async function deleteCommande(formData: FormData): Promise<void> {
+export async function annulerCommande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["admin", "manager"]);
 
   const id = String(formData.get("id") ?? "");
+  const motif = String(formData.get("motif") ?? "").trim();
   if (!id) throw new Error("Commande introuvable.");
+  if (!motif) throw new Error("Un motif d'annulation est requis.");
 
   const supabase = await createClient();
 
-  await supabase.from("lignes_commande").delete().eq("commande_id", id);
+  const { data, error } = await supabase
+    .from("commandes")
+    .update({ statut: "annulee", motif_annulation: motif })
+    .eq("id", id)
+    .not("statut", "in", "(payee,annulee)")
+    .select("id");
 
-  const { data, error } = await supabase.from("commandes").delete().eq("id", id).select("id");
-  if (error) {
+  if (error || !data || data.length === 0) {
     throw new Error(
-      "Impossible de supprimer cette commande : elle a déjà été encaissée en caisse.",
-    );
-  }
-  if (!data || data.length === 0) {
-    throw new Error(
-      "Suppression refusée par les règles de sécurité. Vérifiez que la migration 0005_commandes_delete_rls.sql a bien été exécutée dans Supabase.",
+      "Annulation impossible : la commande a déjà été encaissée ou annulée.",
     );
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/");
   revalidatePath("/kds");
+  revalidatePath("/pos");
 }

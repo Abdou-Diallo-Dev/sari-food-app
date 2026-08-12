@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { createIngredient, enregistrerMouvement } from "./actions";
+import { createIngredient, enregistrerMouvement, declencherDemande } from "./actions";
+import { IconBox } from "@/components/icons";
 
 const CATEGORIES = [
   { value: "matiere_premiere", label: "Matière première" },
@@ -18,16 +19,37 @@ export default async function StockPage() {
   ]);
 
   const peutCreerIngredient = profile.role === "admin" || profile.role === "manager";
+  const peutDemanderAppro = [
+    "chef_patisserie",
+    "chef_boulangerie",
+    "chef_fastfood",
+  ].includes(profile.role);
 
   const supabase = await createClient();
-  const { data: ingredients } = await supabase
-    .from("ingredients")
-    .select("id, nom, categorie, unite, stock_actuel, seuil_alerte")
-    .order("nom");
+  const [{ data: ingredients }, { data: demandesEnCours }] = await Promise.all([
+    supabase
+      .from("ingredients")
+      .select("id, nom, categorie, unite, stock_actuel, seuil_alerte")
+      .order("nom"),
+    peutDemanderAppro
+      ? supabase
+          .from("demandes_approvisionnement")
+          .select("ingredient_id")
+          .eq("chef_id", profile.id)
+          .not("statut", "in", "(rejetee,receptionnee)")
+      : Promise.resolve({ data: [] as { ingredient_id: string }[] }),
+  ]);
+
+  const ingredientsAvecDemandeEnCours = new Set(
+    (demandesEnCours ?? []).map((d) => d.ingredient_id),
+  );
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <h1 className="font-display text-2xl font-extrabold text-ink">Stock</h1>
+      <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
+        <IconBox className="h-6 w-6 text-orange" />
+        Stock
+      </h1>
 
       {CATEGORIES.map((cat) => {
         const items = (ingredients ?? []).filter((i) => i.categorie === cat.value);
@@ -96,6 +118,38 @@ export default async function StockPage() {
                         Enregistrer
                       </button>
                     </form>
+
+                    {peutDemanderAppro && (
+                      <form
+                        action={declencherDemande}
+                        className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2"
+                      >
+                        <input type="hidden" name="ingredient_id" value={ing.id} />
+                        {ingredientsAvecDemandeEnCours.has(ing.id) ? (
+                          <span className="text-xs font-bold text-orange">
+                            Demande de réapprovisionnement déjà en cours
+                          </span>
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              name="quantite_demandee"
+                              required
+                              min={0.001}
+                              step="0.001"
+                              placeholder={`Quantité à demander (${ing.unite})`}
+                              className="w-40 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-[8px] border border-orange px-3 py-1 text-sm font-bold text-orange hover:bg-orange hover:text-white"
+                            >
+                              Demander un réapprovisionnement
+                            </button>
+                          </>
+                        )}
+                      </form>
+                    )}
                   </div>
                 );
               })}

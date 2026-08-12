@@ -5,9 +5,10 @@ import { AppShell } from "@/components/AppShell";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
 
+  const supabase = await createClient();
+
   let restaurantNom: string | null = null;
   if (profile.restaurant_id) {
-    const supabase = await createClient();
     const { data } = await supabase
       .from("restaurants")
       .select("nom")
@@ -16,8 +17,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     restaurantNom = data?.nom ?? null;
   }
 
+  const { data: notifications } = await supabase
+    .from("notifications")
+    .select("id, message, lien, lu, created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
   return (
-    <AppShell profile={profile} restaurantNom={restaurantNom}>
+    <AppShell profile={profile} restaurantNom={restaurantNom} notifications={notifications ?? []}>
       {children}
     </AppShell>
   );

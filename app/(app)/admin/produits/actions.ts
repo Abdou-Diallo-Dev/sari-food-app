@@ -111,3 +111,44 @@ export async function deleteProduit(formData: FormData) {
 
   revalidatePath("/admin/produits");
 }
+
+export async function upsertRecetteIngredient(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const produit_id = String(formData.get("produit_id") ?? "");
+  const ingredient_id = String(formData.get("ingredient_id") ?? "");
+  const quantite_utilisee = Number(formData.get("quantite_utilisee"));
+
+  if (!produit_id || !ingredient_id || !Number.isFinite(quantite_utilisee) || quantite_utilisee <= 0) {
+    return;
+  }
+
+  const supabase = await createClient();
+  await supabase
+    .from("recettes")
+    .upsert(
+      { produit_id, ingredient_id, quantite_utilisee },
+      { onConflict: "produit_id,ingredient_id" },
+    );
+
+  revalidatePath("/admin/produits");
+}
+
+export async function deleteRecetteIngredient(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const produit_id = String(formData.get("produit_id") ?? "");
+  const ingredient_id = String(formData.get("ingredient_id") ?? "");
+  if (!produit_id || !ingredient_id) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("recettes")
+    .delete()
+    .eq("produit_id", produit_id)
+    .eq("ingredient_id", ingredient_id);
+
+  revalidatePath("/admin/produits");
+}

@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ouvrirSession, encaisserCommande, enregistrerDepense, cloturerSession } from "./actions";
+import { IconWallet } from "@/components/icons";
 
 const MOYENS_PAIEMENT = [
   { value: "especes", label: "Espèces" },
@@ -32,7 +33,10 @@ export default async function CaissePage() {
   if (!session) {
     return (
       <div className="mx-auto flex max-w-md flex-col gap-6">
-        <h1 className="font-display text-2xl font-extrabold text-ink">Caisse</h1>
+        <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
+          <IconWallet className="h-6 w-6 text-orange" />
+          Caisse
+        </h1>
 
         <form action={ouvrirSession} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <h2 className="font-bold text-ink">Ouvrir la caisse</h2>
@@ -64,7 +68,7 @@ export default async function CaissePage() {
     );
   }
 
-  const [{ data: commandes }, { data: transactions }] = await Promise.all([
+  const [{ data: commandes }, { data: transactions }, { data: ingredients }] = await Promise.all([
     supabase
       .from("commandes")
       .select("id, numero, canal, total, statut")
@@ -76,6 +80,11 @@ export default async function CaissePage() {
       .select("type, montant, libelle, moyen_paiement, created_at")
       .eq("session_id", session.id)
       .order("created_at"),
+    supabase
+      .from("ingredients")
+      .select("id, nom, unite")
+      .eq("restaurant_id", profile.restaurant_id!)
+      .order("nom"),
   ]);
 
   const totalEncaissements = (transactions ?? [])
@@ -190,6 +199,32 @@ export default async function CaissePage() {
           >
             Ajouter
           </button>
+          {(ingredients ?? []).length > 0 && (
+            <div className="flex w-full flex-wrap items-center gap-2 border-t border-line pt-2">
+              <span className="text-xs text-ink-soft opacity-70">
+                Si « Achat stock » : ingrédient concerné et quantité achetée —
+              </span>
+              <select
+                name="ingredient_id"
+                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+              >
+                <option value="">— ingrédient —</option>
+                {(ingredients ?? []).map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.nom} ({i.unite})
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                name="quantite_stock"
+                min={0.001}
+                step="0.001"
+                placeholder="Quantité"
+                className="w-28 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
+            </div>
+          )}
         </form>
       </section>
 

@@ -1,0 +1,219 @@
+import { requireProfile, requireRole } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { IconWallet } from "@/components/icons";
+
+const LABELS_MOYEN: Record<string, string> = {
+  especes: "Espèces",
+  orange_money: "Orange Money",
+  wave: "Wave",
+  carte: "Carte",
+};
+
+const LABELS_CATEGORIE_DEPENSE: Record<string, string> = {
+  achat_stock: "Achat stock",
+  produit_entretien: "Produit d'entretien",
+  charge_operationnelle: "Charge opérationnelle",
+  divers: "Divers",
+};
+
+type Transaction = {
+  id: string;
+  type: "encaissement" | "depense";
+  montant: number;
+  moyen_paiement: string | null;
+  categorie_depense: string | null;
+  libelle: string | null;
+  created_at: string;
+};
+
+type Session = {
+  id: string;
+  shift: "matin" | "soir";
+  fond_initial: number;
+  total_theorique: number | null;
+  total_compte: number | null;
+  ecart: number | null;
+  statut: "ouverte" | "cloturee";
+  ouverte_at: string;
+  cloturee_at: string | null;
+  utilisateurs: { nom: string } | null;
+  transactions: Transaction[];
+};
+
+function heure(iso: string) {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+export default async function AdminCaissePage() {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const supabase = await createClient();
+
+  const debutJournee = new Date();
+  debutJournee.setHours(0, 0, 0, 0);
+  const debutJourneeIso = debutJournee.toISOString();
+
+  let restaurantsQuery = supabase.from("restaurants").select("id, nom").order("nom");
+  if (profile.role === "manager" && profile.restaurant_id) {
+    restaurantsQuery = restaurantsQuery.eq("id", profile.restaurant_id);
+  }
+  const { data: restaurants } = await restaurantsQuery;
+
+  const parRestaurant = await Promise.all(
+    (restaurants ?? []).map(async (r) => {
+      const { data: sessions } = await supabase
+        .from("sessions_caisse")
+        .select(
+          "id, shift, fond_initial, total_theorique, total_compte, ecart, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
+        )
+        .eq("restaurant_id", r.id)
+        .gte("ouverte_at", debutJourneeIso)
+        .order("ouverte_at", { ascending: false });
+
+      const sessionsTypees = (sessions ?? []) as unknown as Omit<Session, "transactions">[];
+
+      const sessionsAvecTransactions = await Promise.all(
+        sessionsTypees.map(async (s) => {
+          const { data: transactions } = await supabase
+            .from("transactions_caisse")
+            .select("id, type, montant, moyen_paiement, categorie_depense, libelle, created_at")
+            .eq("session_id", s.id)
+            .order("created_at", { ascending: true });
+          return { ...s, transactions: (transactions ?? []) as Transaction[] };
+        }),
+      );
+
+      return { restaurant: r, sessions: sessionsAvecTransactions };
+    }),
+  );
+
+  return (
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
+        <IconWallet className="h-6 w-6 text-orange" />
+        Caisse — supervision
+      </h1>
+
+      {parRestaurant.length === 0 ? (
+        <p className="text-ink-soft opacity-70">Aucun restaurant à afficher.</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {parRestaurant.map(({ restaurant, sessions }) => (
+            <section key={restaurant.id} className="rounded-card border border-line bg-surface p-5">
+              <h2 className="mb-4 font-display text-lg font-extrabold text-ink">{restaurant.nom}</h2>
+
+              {sessions.length === 0 ? (
+                <p className="text-sm text-ink-soft opacity-70">
+                  Aucune session de caisse aujourd&apos;hui.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {sessions.map((s) => {
+                    const totalEncaissements = s.transactions
+                      .filter((t) => t.type === "encaissement")
+                      .reduce((sum, t) => sum + Number(t.montant), 0);
+                    const totalDepenses = s.transactions
+                      .filter((t) => t.type === "depense")
+                      .reduce((sum, t) => sum + Number(t.montant), 0);
+
+                    return (
+                      <details key={s.id} className="rounded-[14px] border border-line bg-paper p-4">
+                        <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold text-ink">
+                            {s.shift === "matin" ? "Matin" : "Soir"} · {s.utilisateurs?.nom ?? "—"}{" "}
+                            <span className="font-normal text-ink-soft">
+                              · ouverte à {heure(s.ouverte_at)}
+                              {s.cloturee_at && ` · clôturée à ${heure(s.cloturee_at)}`}
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-3">
+                            <span
+                              className={`rounded-[7px] px-2 py-0.5 text-xs font-bold ${
+                                s.statut === "ouverte"
+                                  ? "bg-green/15 text-green"
+                                  : "bg-surface text-ink-soft"
+                              }`}
+                            >
+                              {s.statut === "ouverte" ? "Ouverte" : "Clôturée"}
+                            </span>
+                            {s.statut === "cloturee" && s.ecart !== null && (
+                              <span
+                                className={`text-xs font-bold ${
+                                  Number(s.ecart) === 0 ? "text-ink" : "text-red-600"
+                                }`}
+                              >
+                                Écart {Number(s.ecart).toLocaleString("fr-FR")} F
+                              </span>
+                            )}
+                          </span>
+                        </summary>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
+                          <div className="rounded-[10px] bg-surface p-2">
+                            <div className="text-ink-soft">Fond initial</div>
+                            <div className="font-bold text-ink">
+                              {Number(s.fond_initial).toLocaleString("fr-FR")} F
+                            </div>
+                          </div>
+                          <div className="rounded-[10px] bg-surface p-2">
+                            <div className="text-ink-soft">Encaissé</div>
+                            <div className="font-bold text-green">
+                              {totalEncaissements.toLocaleString("fr-FR")} F
+                            </div>
+                          </div>
+                          <div className="rounded-[10px] bg-surface p-2">
+                            <div className="text-ink-soft">Dépenses</div>
+                            <div className="font-bold text-ink">
+                              {totalDepenses.toLocaleString("fr-FR")} F
+                            </div>
+                          </div>
+                          <div className="rounded-[10px] bg-surface p-2">
+                            <div className="text-ink-soft">Compté</div>
+                            <div className="font-bold text-ink">
+                              {s.total_compte !== null
+                                ? `${Number(s.total_compte).toLocaleString("fr-FR")} F`
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {s.transactions.length > 0 && (
+                          <ul className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
+                            {s.transactions.map((t) => (
+                              <li
+                                key={t.id}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] bg-surface px-3 py-1.5 text-sm"
+                              >
+                                <span className="text-ink-soft">
+                                  {heure(t.created_at)} ·{" "}
+                                  {t.type === "encaissement"
+                                    ? (LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement)
+                                    : (LABELS_CATEGORIE_DEPENSE[t.categorie_depense ?? ""] ??
+                                        t.categorie_depense)}
+                                  {t.libelle && ` · ${t.libelle}`}
+                                </span>
+                                <span
+                                  className={`font-bold ${
+                                    t.type === "encaissement" ? "text-green" : "text-red-600"
+                                  }`}
+                                >
+                                  {t.type === "encaissement" ? "+" : "−"}
+                                  {Number(t.montant).toLocaleString("fr-FR")} F
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </details>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -87,7 +87,7 @@ export async function encaisserCommande(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function enregistrerDepense(formData: FormData) {
+export async function enregistrerDepense(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["caissiere"]);
 
@@ -97,6 +97,17 @@ export async function enregistrerDepense(formData: FormData) {
   const montant = Number(formData.get("montant"));
   if (!sessionId || !categorie_depense || !Number.isFinite(montant) || montant <= 0) return;
 
+  const ingredient_id = String(formData.get("ingredient_id") ?? "").trim();
+  const quantite_stock = Number(formData.get("quantite_stock"));
+
+  if (categorie_depense === "achat_stock") {
+    if (!ingredient_id || !Number.isFinite(quantite_stock) || quantite_stock <= 0) {
+      throw new Error(
+        "Pour une dépense « Achat stock », choisissez l'ingrédient et la quantité achetée.",
+      );
+    }
+  }
+
   const supabase = await createClient();
   await supabase.from("transactions_caisse").insert({
     session_id: sessionId,
@@ -105,9 +116,11 @@ export async function enregistrerDepense(formData: FormData) {
     libelle: libelle || null,
     montant,
     utilisateur_id: profile.id,
+    ...(categorie_depense === "achat_stock" ? { ingredient_id, quantite_stock } : {}),
   });
 
   revalidatePath("/caisse");
+  revalidatePath("/stock");
 }
 
 export async function cloturerSession(formData: FormData) {
