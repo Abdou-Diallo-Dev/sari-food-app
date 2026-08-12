@@ -1,0 +1,113 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { requireProfile, requireRole } from "@/lib/auth";
+
+export async function createCategorie(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const nom = String(formData.get("nom") ?? "").trim();
+  const pole = String(formData.get("pole") ?? "");
+
+  if (!nom || !pole || !profile.restaurant_id) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("categories_produits")
+    .insert({ nom, pole, restaurant_id: profile.restaurant_id });
+
+  revalidatePath("/admin/produits");
+}
+
+export async function createProduit(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const nom = String(formData.get("nom") ?? "").trim();
+  const prix = Number(formData.get("prix"));
+  const categorie_id = String(formData.get("categorie_id") ?? "");
+
+  if (!nom || !categorie_id || !Number.isFinite(prix) || prix <= 0 || !profile.restaurant_id) {
+    return;
+  }
+
+  const supabase = await createClient();
+  await supabase
+    .from("produits")
+    .insert({ nom, prix, categorie_id, restaurant_id: profile.restaurant_id });
+
+  revalidatePath("/admin/produits");
+}
+
+export async function toggleProduitActif(produitId: string, actif: boolean) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const supabase = await createClient();
+  await supabase.from("produits").update({ actif }).eq("id", produitId);
+
+  revalidatePath("/admin/produits");
+}
+
+export async function updateCategorie(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  const nom = String(formData.get("nom") ?? "").trim();
+  if (!id || !nom) return;
+
+  const supabase = await createClient();
+  await supabase.from("categories_produits").update({ nom }).eq("id", id);
+
+  revalidatePath("/admin/produits");
+}
+
+export async function deleteCategorie(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  // bloqué par la contrainte de clé étrangère si des produits y sont encore rattachés
+  await supabase.from("categories_produits").delete().eq("id", id);
+
+  revalidatePath("/admin/produits");
+}
+
+export async function updateProduit(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  const nom = String(formData.get("nom") ?? "").trim();
+  const prix = Number(formData.get("prix"));
+  if (!id || !nom || !Number.isFinite(prix) || prix <= 0) return;
+
+  const supabase = await createClient();
+  await supabase.from("produits").update({ nom, prix }).eq("id", id);
+
+  revalidatePath("/admin/produits");
+}
+
+export async function deleteProduit(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("produits").delete().eq("id", id);
+
+  if (error) {
+    // déjà utilisé dans des commandes passées : on le désactive plutôt que de casser l'historique
+    await supabase.from("produits").update({ actif: false }).eq("id", id);
+  }
+
+  revalidatePath("/admin/produits");
+}
