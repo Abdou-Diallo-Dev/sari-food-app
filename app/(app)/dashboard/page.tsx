@@ -139,7 +139,7 @@ export default async function DashboardPage({
   const jFin = ajouterJours(jDebut, 1);
 
   const [
-    { data: resume },
+    { data: resume, error: resumeError },
     { data: produitsMoisData },
     { data: productionData },
     { data: caissiersData },
@@ -199,7 +199,15 @@ export default async function DashboardPage({
       )}
 
       {!r ? (
-        <p className="text-ink-soft opacity-70">Impossible de charger les indicateurs.</p>
+        <div className="rounded-card border border-red-300 bg-red-50 p-4">
+          <p className="font-bold text-red-600">Impossible de charger les indicateurs.</p>
+          {resumeError && (
+            <p className="mt-1 text-xs text-red-600 opacity-80">
+              {resumeError.message}
+              {resumeError.hint ? ` — ${resumeError.hint}` : ""}
+            </p>
+          )}
+        </div>
       ) : (
         <section className="rounded-card border border-line bg-surface p-5">
           <h2 className="mb-4 font-display text-lg font-extrabold text-ink">{restaurant.nom}</h2>
