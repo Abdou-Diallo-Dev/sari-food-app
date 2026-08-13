@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { IconWallet } from "@/components/icons";
+import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
 
 const LABELS_MOYEN: Record<string, string> = {
   especes: "Espèces",
@@ -30,9 +31,14 @@ type Session = {
   id: string;
   shift: "matin" | "soir";
   fond_initial: number;
+  fond_initial_especes: number;
+  fond_initial_wave: number;
+  fond_initial_orange_money: number;
   total_theorique: number | null;
   total_compte: number | null;
+  total_compte_especes: number | null;
   ecart: number | null;
+  ecart_especes: number | null;
   statut: "ouverte" | "cloturee";
   ouverte_at: string;
   cloturee_at: string | null;
@@ -65,7 +71,7 @@ export default async function AdminCaissePage() {
       const { data: sessions } = await supabase
         .from("sessions_caisse")
         .select(
-          "id, shift, fond_initial, total_theorique, total_compte, ecart, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
+          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
         )
         .eq("restaurant_id", r.id)
         .gte("ouverte_at", debutJourneeIso)
@@ -137,13 +143,13 @@ export default async function AdminCaissePage() {
                             >
                               {s.statut === "ouverte" ? "Ouverte" : "Clôturée"}
                             </span>
-                            {s.statut === "cloturee" && s.ecart !== null && (
+                            {s.statut === "cloturee" && s.ecart_especes !== null && (
                               <span
                                 className={`text-xs font-bold ${
-                                  Number(s.ecart) === 0 ? "text-ink" : "text-red-600"
+                                  Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"
                                 }`}
                               >
-                                Écart {Number(s.ecart).toLocaleString("fr-FR")} F
+                                Écart espèces {Number(s.ecart_especes).toLocaleString("fr-FR")} F
                               </span>
                             )}
                           </span>
@@ -178,6 +184,50 @@ export default async function AdminCaissePage() {
                           </div>
                         </div>
 
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {MOYENS_PAIEMENT_CAISSE.map((m) => {
+                            const fondInitial =
+                              m.value === "especes"
+                                ? Number(s.fond_initial_especes)
+                                : m.value === "wave"
+                                  ? Number(s.fond_initial_wave)
+                                  : Number(s.fond_initial_orange_money);
+                            const { encaisse, depense } = totauxParMoyen(s.transactions, m.value);
+                            const theorique = fondInitial + encaisse - depense;
+                            return (
+                              <div key={m.value} className="rounded-[10px] border border-line bg-surface p-2.5 text-sm">
+                                <div className="mb-1 font-bold text-ink">{m.label}</div>
+                                <div className="flex justify-between text-xs text-ink-soft">
+                                  <span>Initial</span>
+                                  <span>{fondInitial.toLocaleString("fr-FR")} F</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-ink-soft">
+                                  <span>Encaissé</span>
+                                  <span className="text-green">{encaisse.toLocaleString("fr-FR")} F</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-ink-soft">
+                                  <span>Dépenses</span>
+                                  <span>{depense.toLocaleString("fr-FR")} F</span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-ink">
+                                  <span>Théorique</span>
+                                  <span>{theorique.toLocaleString("fr-FR")} F</span>
+                                </div>
+                                {m.value === "especes" && s.statut === "cloturee" && (
+                                  <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
+                                    <span className="text-ink-soft">Compté / Écart</span>
+                                    <span className={Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"}>
+                                      {Number(s.total_compte_especes).toLocaleString("fr-FR")} F (
+                                      {Number(s.ecart_especes) >= 0 ? "+" : ""}
+                                      {Number(s.ecart_especes).toLocaleString("fr-FR")} F)
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
                         {s.transactions.length > 0 && (
                           <ul className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
                             {s.transactions.map((t) => (
@@ -189,8 +239,9 @@ export default async function AdminCaissePage() {
                                   {heure(t.created_at)} ·{" "}
                                   {t.type === "encaissement"
                                     ? (LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement)
-                                    : (LABELS_CATEGORIE_DEPENSE[t.categorie_depense ?? ""] ??
-                                        t.categorie_depense)}
+                                    : `${LABELS_CATEGORIE_DEPENSE[t.categorie_depense ?? ""] ?? t.categorie_depense} (${
+                                        LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement
+                                      })`}
                                   {t.libelle && ` · ${t.libelle}`}
                                 </span>
                                 <span

@@ -37,7 +37,14 @@ async function verifierEtRafraichirCommande(
   );
 
   if (toutesPretes) {
-    await supabase.from("commandes").update({ statut: "prete" }).eq("id", ligne.commande_id);
+    // Ne jamais rétrograder une commande déjà payée/livrée/annulée : avec le
+    // paiement intégré à la prise de commande, une commande peut être "payee"
+    // avant même que la cuisine ait terminé.
+    await supabase
+      .from("commandes")
+      .update({ statut: "prete" })
+      .eq("id", ligne.commande_id)
+      .in("statut", ["recue", "en_preparation"]);
   }
 
   revalidatePath("/kds");

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { createCommande, type PanierItem } from "./actions";
+import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
 
 export type ProduitPos = {
   id: string;
@@ -20,6 +21,7 @@ const POLES = [
 export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const [panier, setPanier] = useState<Record<string, PanierItem>>({});
   const [canal, setCanal] = useState<"sur_place" | "emporter">("sur_place");
+  const [moyenPaiement, setMoyenPaiement] = useState<MoyenPaiementCaisse>("especes");
   const [message, setMessage] = useState<{ type: "success" | "error"; texte: string } | null>(
     null,
   );
@@ -75,7 +77,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
     setMessage(null);
     setDerniereCommandeId(null);
     startTransition(async () => {
-      const res = await createCommande(canal, lignes);
+      const res = await createCommande(canal, lignes, moyenPaiement);
       if (res.error) {
         setMessage({ type: "error", texte: res.error });
       } else {
@@ -142,6 +144,25 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
               {c === "sur_place" ? "Sur place" : "À emporter"}
             </button>
           ))}
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-bold text-ink-soft">Moyen de paiement</p>
+          <div className="flex gap-2">
+            {MOYENS_PAIEMENT_CAISSE.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setMoyenPaiement(m.value)}
+                className={`flex-1 rounded-[9px] border px-2 py-1.5 text-xs font-bold transition ${
+                  moyenPaiement === m.value
+                    ? "border-orange bg-orange text-white"
+                    : "border-line bg-paper text-ink-soft"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {lignes.length === 0 ? (

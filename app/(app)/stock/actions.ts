@@ -21,13 +21,16 @@ export async function createIngredient(formData: FormData) {
   const categorie = String(formData.get("categorie") ?? "");
   const unite = String(formData.get("unite") ?? "").trim();
   const seuil_alerte = Number(formData.get("seuil_alerte"));
+  const stock_max_raw = String(formData.get("stock_max") ?? "").trim();
+  const stock_max = stock_max_raw ? Number(stock_max_raw) : null;
 
   if (
     !nom ||
     !["matiere_premiere", "consommable_emballage"].includes(categorie) ||
     !unite ||
     !Number.isFinite(seuil_alerte) ||
-    seuil_alerte < 0
+    seuil_alerte < 0 ||
+    (stock_max !== null && (!Number.isFinite(stock_max) || stock_max <= 0))
   ) {
     return;
   }
@@ -39,7 +42,57 @@ export async function createIngredient(formData: FormData) {
     categorie,
     unite,
     seuil_alerte,
+    stock_max,
   });
+
+  revalidatePath("/stock");
+}
+
+export async function updateIngredient(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  const nom = String(formData.get("nom") ?? "").trim();
+  const unite = String(formData.get("unite") ?? "").trim();
+  const seuil_alerte = Number(formData.get("seuil_alerte"));
+  const stock_max_raw = String(formData.get("stock_max") ?? "").trim();
+  const stock_max = stock_max_raw ? Number(stock_max_raw) : null;
+
+  if (
+    !id ||
+    !nom ||
+    !unite ||
+    !Number.isFinite(seuil_alerte) ||
+    seuil_alerte < 0 ||
+    (stock_max !== null && (!Number.isFinite(stock_max) || stock_max <= 0))
+  ) {
+    return;
+  }
+
+  const supabase = await createClient();
+  await supabase
+    .from("ingredients")
+    .update({ nom, unite, seuil_alerte, stock_max })
+    .eq("id", id);
+
+  revalidatePath("/stock");
+}
+
+export async function deleteIngredient(formData: FormData) {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager"]);
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("ingredients").delete().eq("id", id);
+
+  if (error) {
+    // déjà référencé (mouvements, recettes, demandes) : on le désactive plutôt que de casser l'historique
+    await supabase.from("ingredients").update({ actif: false }).eq("id", id);
+  }
 
   revalidatePath("/stock");
 }

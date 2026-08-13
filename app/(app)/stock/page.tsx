@@ -1,7 +1,13 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { createIngredient, enregistrerMouvement, declencherDemande } from "./actions";
-import { IconBox } from "@/components/icons";
+import {
+  createIngredient,
+  updateIngredient,
+  deleteIngredient,
+  enregistrerMouvement,
+  declencherDemande,
+} from "./actions";
+import { IconBox, IconCheck, IconTrash } from "@/components/icons";
 
 const CATEGORIES = [
   { value: "matiere_premiere", label: "Matière première" },
@@ -31,7 +37,8 @@ export default async function StockPage() {
   const [{ data: ingredients }, { data: demandesEnCours }] = await Promise.all([
     supabase
       .from("ingredients")
-      .select("id, nom, categorie, unite, stock_actuel, seuil_alerte")
+      .select("id, nom, categorie, unite, stock_actuel, seuil_alerte, stock_max, actif")
+      .eq("actif", true)
       .order("nom"),
     peutDemanderAppro
       ? supabase
@@ -66,6 +73,12 @@ export default async function StockPage() {
                 const stock = Number(ing.stock_actuel);
                 const seuil = Number(ing.seuil_alerte);
                 const enAlerte = stock <= seuil;
+                const reference =
+                  ing.stock_max && Number(ing.stock_max) > 0
+                    ? Number(ing.stock_max)
+                    : Math.max(seuil * 2, stock, 1);
+                const pourcentageStock = Math.min(100, Math.max(0, (stock / reference) * 100));
+                const pourcentageSeuil = Math.min(100, Math.max(0, (seuil / reference) * 100));
 
                 return (
                   <div
@@ -83,9 +96,79 @@ export default async function StockPage() {
                         {enAlerte && " ⚠"}
                       </span>
                     </div>
+
+                    <div className="relative mb-1 h-2 w-full overflow-visible rounded-full bg-line/40">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          enAlerte ? "bg-red-500" : "bg-green"
+                        }`}
+                        style={{ width: `${pourcentageStock}%` }}
+                      />
+                      <div
+                        className="absolute top-[-2px] h-3 w-[2px] bg-ink-soft/70"
+                        title={`Seuil d'alerte : ${seuil.toLocaleString("fr-FR")} ${ing.unite}`}
+                        style={{ left: `${pourcentageSeuil}%` }}
+                      />
+                    </div>
                     <span className="mb-2 block text-xs text-ink-soft opacity-70">
                       Seuil d&apos;alerte : {seuil.toLocaleString("fr-FR")} {ing.unite}
+                      {ing.stock_max ? ` · Référence : ${Number(ing.stock_max).toLocaleString("fr-FR")} ${ing.unite}` : ""}
                     </span>
+
+                    {peutCreerIngredient && (
+                      <form
+                        className="mb-2 flex flex-wrap items-center gap-1.5 border-b border-line pb-2"
+                      >
+                        <input type="hidden" name="id" value={ing.id} />
+                        <input
+                          type="text"
+                          name="nom"
+                          defaultValue={ing.nom}
+                          className="min-w-0 flex-1 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-bold text-ink hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          name="unite"
+                          defaultValue={ing.unite}
+                          className="w-16 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          name="seuil_alerte"
+                          defaultValue={seuil}
+                          min={0}
+                          step="0.01"
+                          title="Seuil d'alerte"
+                          className="w-20 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          name="stock_max"
+                          defaultValue={ing.stock_max ?? ""}
+                          min={0}
+                          step="0.01"
+                          placeholder="Réf. max"
+                          title="Quantité de référence pour la barre de suivi"
+                          className="w-20 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink placeholder:text-ink-soft placeholder:opacity-60 hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                        />
+                        <button
+                          formAction={updateIngredient}
+                          type="submit"
+                          title="Enregistrer"
+                          className="rounded-[7px] p-1 text-ink-soft hover:text-orange"
+                        >
+                          <IconCheck className="h-4 w-4" />
+                        </button>
+                        <button
+                          formAction={deleteIngredient}
+                          type="submit"
+                          title="Supprimer l'ingrédient"
+                          className="rounded-[7px] p-1 text-ink-soft hover:text-red-600"
+                        >
+                          <IconTrash className="h-4 w-4" />
+                        </button>
+                      </form>
+                    )}
 
                     <form action={enregistrerMouvement} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="ingredient_id" value={ing.id} />
@@ -185,6 +268,14 @@ export default async function StockPage() {
                   step="0.01"
                   placeholder="Seuil d'alerte"
                   className="w-32 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                />
+                <input
+                  type="number"
+                  name="stock_max"
+                  min={0}
+                  step="0.01"
+                  placeholder="Quantité de référence (optionnel)"
+                  className="w-48 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
                 />
                 <button
                   type="submit"

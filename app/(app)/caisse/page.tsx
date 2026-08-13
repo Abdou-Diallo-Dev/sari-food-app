@@ -1,14 +1,9 @@
+import Link from "next/link";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ouvrirSession, encaisserCommande, enregistrerDepense, cloturerSession } from "./actions";
+import { ouvrirSession, enregistrerDepense, cloturerSession } from "./actions";
+import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen, type MoyenPaiementCaisse } from "@/lib/caisse";
 import { IconWallet } from "@/components/icons";
-
-const MOYENS_PAIEMENT = [
-  { value: "especes", label: "Espèces" },
-  { value: "orange_money", label: "Orange Money" },
-  { value: "wave", label: "Wave" },
-  { value: "carte", label: "Carte" },
-] as const;
 
 const CATEGORIES_DEPENSE = [
   { value: "achat_stock", label: "Achat stock" },
@@ -16,6 +11,19 @@ const CATEGORIES_DEPENSE = [
   { value: "charge_operationnelle", label: "Charge opérationnelle" },
   { value: "divers", label: "Divers" },
 ] as const;
+
+const LABELS_MOYEN: Record<string, string> = {
+  especes: "Espèces",
+  orange_money: "Orange Money",
+  wave: "Wave",
+};
+
+const LABELS_CATEGORIE_DEPENSE: Record<string, string> = {
+  achat_stock: "Achat stock",
+  produit_entretien: "Produit d'entretien",
+  charge_operationnelle: "Charge opérationnelle",
+  divers: "Divers",
+};
 
 export default async function CaissePage() {
   const profile = await requireProfile();
@@ -25,7 +33,9 @@ export default async function CaissePage() {
 
   const { data: session } = await supabase
     .from("sessions_caisse")
-    .select("id, shift, fond_initial, ouverte_at")
+    .select(
+      "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, ouverte_at",
+    )
     .eq("caissiere_id", profile.id)
     .eq("statut", "ouverte")
     .maybeSingle();
@@ -48,18 +58,43 @@ export default async function CaissePage() {
             <option value="matin">Matin</option>
             <option value="soir">Soir</option>
           </select>
-          <input
-            type="number"
-            name="fond_initial"
-            required
-            min={0}
-            step={1}
-            placeholder="Fond de caisse initial (F)"
-            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-          />
+
+          <p className="mt-1 text-xs font-bold text-ink-soft opacity-70">
+            Solde initial par caisse
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <input
+              type="number"
+              name="fond_initial_especes"
+              defaultValue={0}
+              min={0}
+              step={1}
+              placeholder="Espèces"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="fond_initial_wave"
+              defaultValue={0}
+              min={0}
+              step={1}
+              placeholder="Wave"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="fond_initial_orange_money"
+              defaultValue={0}
+              min={0}
+              step={1}
+              placeholder="Orange Money"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+          </div>
+
           <button
             type="submit"
-            className="rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
+            className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
           >
             Ouvrir
           </button>
@@ -68,32 +103,49 @@ export default async function CaissePage() {
     );
   }
 
-  const [{ data: commandes }, { data: transactions }, { data: ingredients }] = await Promise.all([
-    supabase
-      .from("commandes")
-      .select("id, numero, canal, total, statut")
-      .eq("restaurant_id", profile.restaurant_id!)
-      .not("statut", "in", "(payee,annulee)")
-      .order("created_at"),
+  const [{ data: transactions }, { data: ingredients }] = await Promise.all([
     supabase
       .from("transactions_caisse")
-      .select("type, montant, libelle, moyen_paiement, created_at")
+      .select("id, type, montant, libelle, moyen_paiement, categorie_depense, created_at")
       .eq("session_id", session.id)
-      .order("created_at"),
+      .order("created_at", { ascending: false }),
     supabase
       .from("ingredients")
       .select("id, nom, unite")
       .eq("restaurant_id", profile.restaurant_id!)
+      .eq("actif", true)
       .order("nom"),
   ]);
 
-  const totalEncaissements = (transactions ?? [])
-    .filter((t) => t.type === "encaissement")
-    .reduce((s, t) => s + Number(t.montant), 0);
-  const totalDepenses = (transactions ?? [])
-    .filter((t) => t.type === "depense")
-    .reduce((s, t) => s + Number(t.montant), 0);
-  const totalTheorique = Number(session.fond_initial) + totalEncaissements - totalDepenses;
+  const especes = totauxParMoyen(transactions ?? [], "especes");
+  const wave = totauxParMoyen(transactions ?? [], "wave");
+  const orangeMoney = totauxParMoyen(transactions ?? [], "orange_money");
+
+  const soldes: { moyen: MoyenPaiementCaisse; label: string; fondInitial: number; encaisse: number; depense: number }[] = [
+    {
+      moyen: "especes",
+      label: "Espèces",
+      fondInitial: Number(session.fond_initial_especes),
+      encaisse: especes.encaisse,
+      depense: especes.depense,
+    },
+    {
+      moyen: "wave",
+      label: "Wave",
+      fondInitial: Number(session.fond_initial_wave),
+      encaisse: wave.encaisse,
+      depense: wave.depense,
+    },
+    {
+      moyen: "orange_money",
+      label: "Orange Money",
+      fondInitial: Number(session.fond_initial_orange_money),
+      encaisse: orangeMoney.encaisse,
+      depense: orangeMoney.depense,
+    },
+  ];
+
+  const totalConsolide = soldes.reduce((s, m) => s + m.fondInitial + m.encaisse - m.depense, 0);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -104,63 +156,48 @@ export default async function CaissePage() {
           <span className="font-bold text-ink">
             Session {session.shift === "matin" ? "matin" : "soir"} — ouverte
           </span>
-          <span className="text-sm text-ink-soft">
-            Fond initial : {Number(session.fond_initial).toLocaleString("fr-FR")} F
+          <span className="font-display text-lg font-extrabold text-orange">
+            Total {totalConsolide.toLocaleString("fr-FR")} F
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center text-sm">
-          <div className="rounded-[10px] bg-paper p-2">
-            <div className="text-ink-soft">Encaissé</div>
-            <div className="font-bold text-green">{totalEncaissements.toLocaleString("fr-FR")} F</div>
-          </div>
-          <div className="rounded-[10px] bg-paper p-2">
-            <div className="text-ink-soft">Dépenses</div>
-            <div className="font-bold text-ink">{totalDepenses.toLocaleString("fr-FR")} F</div>
-          </div>
-          <div className="rounded-[10px] bg-paper p-2">
-            <div className="text-ink-soft">Théorique</div>
-            <div className="font-bold text-ink">{totalTheorique.toLocaleString("fr-FR")} F</div>
-          </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {soldes.map((m) => {
+            const theorique = m.fondInitial + m.encaisse - m.depense;
+            return (
+              <div key={m.moyen} className="rounded-[10px] bg-paper p-3 text-sm">
+                <div className="mb-1 font-bold text-ink">{m.label}</div>
+                <div className="text-ink-soft">
+                  Initial <span className="font-bold text-ink">{m.fondInitial.toLocaleString("fr-FR")} F</span>
+                </div>
+                <div className="text-ink-soft">
+                  Encaissé <span className="font-bold text-green">{m.encaisse.toLocaleString("fr-FR")} F</span>
+                </div>
+                <div className="text-ink-soft">
+                  Dépenses <span className="font-bold text-ink">{m.depense.toLocaleString("fr-FR")} F</span>
+                </div>
+                <div className="mt-1 border-t border-line pt-1 font-bold text-ink">
+                  Solde {theorique.toLocaleString("fr-FR")} F
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
-      <section className="rounded-card border border-line bg-surface p-5">
-        <h2 className="mb-3 font-bold text-ink">Commandes à encaisser</h2>
-        {(commandes ?? []).length === 0 ? (
-          <p className="text-sm text-ink-soft opacity-70">Aucune commande en attente d&apos;encaissement.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {(commandes ?? []).map((c) => (
-              <li key={c.id} className="rounded-[10px] border border-line bg-paper p-3">
-                <form action={encaisserCommande} className="flex flex-wrap items-center gap-2">
-                  <input type="hidden" name="commande_id" value={c.id} />
-                  <input type="hidden" name="session_id" value={session.id} />
-                  <span className="flex-1 text-sm font-bold text-ink">
-                    n°{c.numero} · {c.canal === "sur_place" ? "Sur place" : "À emporter"} ·{" "}
-                    {Number(c.total).toLocaleString("fr-FR")} F
-                  </span>
-                  <select
-                    name="moyen_paiement"
-                    required
-                    className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
-                  >
-                    {MOYENS_PAIEMENT.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded-[8px] bg-green px-3 py-1 text-sm font-bold text-white"
-                  >
-                    Encaisser
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="flex gap-2">
+        <Link
+          href="/caisse/journal?type=encaissements"
+          className="flex-1 rounded-[11px] border border-line bg-surface px-3 py-2.5 text-center text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+        >
+          Journal des encaissements
+        </Link>
+        <Link
+          href="/caisse/journal?type=depenses"
+          className="flex-1 rounded-[11px] border border-line bg-surface px-3 py-2.5 text-center text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+        >
+          Journal des dépenses
+        </Link>
       </section>
 
       <section className="rounded-card border border-line bg-surface p-5">
@@ -175,6 +212,18 @@ export default async function CaissePage() {
             {CATEGORIES_DEPENSE.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
+              </option>
+            ))}
+          </select>
+          <select
+            name="moyen_paiement"
+            required
+            title="Caisse concernée par la dépense"
+            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+          >
+            {MOYENS_PAIEMENT_CAISSE.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
               </option>
             ))}
           </select>
@@ -229,16 +278,52 @@ export default async function CaissePage() {
       </section>
 
       <section className="rounded-card border border-line bg-surface p-5">
+        <h2 className="mb-3 font-bold text-ink">Historique de la session</h2>
+        {(transactions ?? []).length === 0 ? (
+          <p className="text-sm text-ink-soft opacity-70">Aucun mouvement pour le moment.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {(transactions ?? []).map((t) => (
+              <li
+                key={t.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] bg-paper px-3 py-1.5 text-sm"
+              >
+                <span className="text-ink-soft">
+                  {new Date(t.created_at).toLocaleTimeString("fr-FR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  ·{" "}
+                  {t.type === "encaissement"
+                    ? (LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement)
+                    : `${LABELS_CATEGORIE_DEPENSE[t.categorie_depense ?? ""] ?? t.categorie_depense} (${LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement})`}
+                  {t.libelle && ` · ${t.libelle}`}
+                </span>
+                <span className={`font-bold ${t.type === "encaissement" ? "text-green" : "text-red-600"}`}>
+                  {t.type === "encaissement" ? "+" : "−"}
+                  {Number(t.montant).toLocaleString("fr-FR")} F
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-3 font-bold text-ink">Clôturer la caisse</h2>
+        <p className="mb-2 text-xs text-ink-soft opacity-70">
+          Seules les espèces se comptent physiquement. Wave et Orange Money sont retenus au
+          théorique calculé à partir des encaissements enregistrés.
+        </p>
         <form action={cloturerSession} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="session_id" value={session.id} />
           <input
             type="number"
-            name="total_compte"
+            name="total_compte_especes"
             required
             min={0}
             step={1}
-            placeholder="Montant compté en caisse (F)"
+            placeholder="Montant compté en espèces (F)"
             className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
           />
           <button

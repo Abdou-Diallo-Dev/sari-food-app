@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
 
 export async function ouvrirSession(formData: FormData) {
   const profile = await requireProfile();
@@ -10,8 +11,19 @@ export async function ouvrirSession(formData: FormData) {
   if (!profile.restaurant_id) return;
 
   const shift = String(formData.get("shift") ?? "");
-  const fond_initial = Number(formData.get("fond_initial"));
-  if (!["matin", "soir"].includes(shift) || !Number.isFinite(fond_initial) || fond_initial < 0) {
+  const fond_initial_especes = Number(formData.get("fond_initial_especes") || 0);
+  const fond_initial_wave = Number(formData.get("fond_initial_wave") || 0);
+  const fond_initial_orange_money = Number(formData.get("fond_initial_orange_money") || 0);
+
+  if (
+    !["matin", "soir"].includes(shift) ||
+    !Number.isFinite(fond_initial_especes) ||
+    fond_initial_especes < 0 ||
+    !Number.isFinite(fond_initial_wave) ||
+    fond_initial_wave < 0 ||
+    !Number.isFinite(fond_initial_orange_money) ||
+    fond_initial_orange_money < 0
+  ) {
     return;
   }
 
@@ -29,62 +41,13 @@ export async function ouvrirSession(formData: FormData) {
     restaurant_id: profile.restaurant_id,
     caissiere_id: profile.id,
     shift,
-    fond_initial,
+    fond_initial: fond_initial_especes + fond_initial_wave + fond_initial_orange_money,
+    fond_initial_especes,
+    fond_initial_wave,
+    fond_initial_orange_money,
   });
 
   revalidatePath("/caisse");
-}
-
-export async function encaisserCommande(formData: FormData) {
-  const profile = await requireProfile();
-  requireRole(profile, ["caissiere", "manager", "admin"]);
-
-  const commandeId = String(formData.get("commande_id") ?? "");
-  const sessionId = String(formData.get("session_id") ?? "");
-  const moyen_paiement = String(formData.get("moyen_paiement") ?? "");
-  if (!commandeId || !sessionId || !moyen_paiement) return;
-
-  const supabase = await createClient();
-
-  const { data: commande } = await supabase
-    .from("commandes")
-    .select("id, total, statut")
-    .eq("id", commandeId)
-    .single();
-  if (!commande || commande.statut === "payee" || commande.statut === "annulee") return;
-
-  const { data: transaction, error } = await supabase
-    .from("transactions_caisse")
-    .insert({
-      session_id: sessionId,
-      type: "encaissement",
-      montant: commande.total,
-      moyen_paiement,
-      commande_id: commandeId,
-      utilisateur_id: profile.id,
-    })
-    .select("id")
-    .single();
-  if (error || !transaction) {
-    throw new Error("Impossible d'enregistrer l'encaissement.");
-  }
-
-  const { data: mise_a_jour, error: updateError } = await supabase
-    .from("commandes")
-    .update({ statut: "payee", session_id: sessionId })
-    .eq("id", commandeId)
-    .select("id");
-
-  if (updateError || !mise_a_jour || mise_a_jour.length === 0) {
-    await supabase.from("transactions_caisse").delete().eq("id", transaction.id);
-    throw new Error(
-      "L'encaissement a échoué : la commande n'a pas pu être marquée comme payée.",
-    );
-  }
-
-  revalidatePath("/caisse");
-  revalidatePath("/dashboard");
-  revalidatePath("/");
 }
 
 export async function enregistrerDepense(formData: FormData): Promise<void> {
@@ -93,9 +56,14 @@ export async function enregistrerDepense(formData: FormData): Promise<void> {
 
   const sessionId = String(formData.get("session_id") ?? "");
   const categorie_depense = String(formData.get("categorie_depense") ?? "");
+  const moyen_paiement = String(formData.get("moyen_paiement") ?? "");
   const libelle = String(formData.get("libelle") ?? "").trim();
   const montant = Number(formData.get("montant"));
   if (!sessionId || !categorie_depense || !Number.isFinite(montant) || montant <= 0) return;
+
+  if (!MOYENS_PAIEMENT_CAISSE.some((m) => m.value === moyen_paiement)) {
+    throw new Error("Choisissez la caisse (espèces, Wave ou Orange Money) concernée par la dépense.");
+  }
 
   const ingredient_id = String(formData.get("ingredient_id") ?? "").trim();
   const quantite_stock = Number(formData.get("quantite_stock"));
@@ -113,6 +81,7 @@ export async function enregistrerDepense(formData: FormData): Promise<void> {
     session_id: sessionId,
     type: "depense",
     categorie_depense,
+    moyen_paiement,
     libelle: libelle || null,
     montant,
     utilisateur_id: profile.id,
@@ -128,43 +97,50 @@ export async function cloturerSession(formData: FormData) {
   requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const sessionId = String(formData.get("session_id") ?? "");
-  const total_compte = Number(formData.get("total_compte"));
-  if (!sessionId || !Number.isFinite(total_compte) || total_compte < 0) return;
+  const total_compte_especes = Number(formData.get("total_compte_especes"));
+  if (!sessionId || !Number.isFinite(total_compte_especes) || total_compte_especes < 0) return;
 
   const supabase = await createClient();
 
   const { data: session } = await supabase
     .from("sessions_caisse")
-    .select("fond_initial")
+    .select("fond_initial_especes, fond_initial_wave, fond_initial_orange_money")
     .eq("id", sessionId)
     .single();
   if (!session) return;
 
   const { data: transactions } = await supabase
     .from("transactions_caisse")
-    .select("type, montant")
+    .select("type, montant, moyen_paiement")
     .eq("session_id", sessionId);
 
-  const totalEncaissements = (transactions ?? [])
-    .filter((t) => t.type === "encaissement")
-    .reduce((s, t) => s + Number(t.montant), 0);
-  const totalDepenses = (transactions ?? [])
-    .filter((t) => t.type === "depense")
-    .reduce((s, t) => s + Number(t.montant), 0);
+  const especes = totauxParMoyen(transactions ?? [], "especes");
+  const wave = totauxParMoyen(transactions ?? [], "wave");
+  const orangeMoney = totauxParMoyen(transactions ?? [], "orange_money");
 
-  const total_theorique = Number(session.fond_initial) + totalEncaissements - totalDepenses;
-  const ecart = total_compte - total_theorique;
+  const theoriqueEspeces = Number(session.fond_initial_especes) + especes.encaisse - especes.depense;
+  const theoriqueWave = Number(session.fond_initial_wave) + wave.encaisse - wave.depense;
+  const theoriqueOrangeMoney =
+    Number(session.fond_initial_orange_money) + orangeMoney.encaisse - orangeMoney.depense;
+
+  const total_theorique = theoriqueEspeces + theoriqueWave + theoriqueOrangeMoney;
+  const ecart_especes = total_compte_especes - theoriqueEspeces;
+  // Wave/Orange Money : pas de comptage physique possible, on retient le théorique.
+  const total_compte = total_compte_especes + theoriqueWave + theoriqueOrangeMoney;
 
   await supabase
     .from("sessions_caisse")
     .update({
       total_theorique,
       total_compte,
-      ecart,
+      ecart: ecart_especes,
+      total_compte_especes,
+      ecart_especes,
       statut: "cloturee",
       cloturee_at: new Date().toISOString(),
     })
     .eq("id", sessionId);
 
   revalidatePath("/caisse");
+  revalidatePath("/admin/caisse");
 }
