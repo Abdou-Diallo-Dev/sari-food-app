@@ -1,15 +1,9 @@
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import {
-  IconChart,
-  IconCart,
-  IconChefHat,
-  IconWallet,
-  IconBox,
-  IconBook,
-  IconAlert,
-} from "@/components/icons";
+import { IconAlert } from "@/components/icons";
+import { navItemsPour, ROLES_CUISINE } from "@/lib/nav";
 
 const LABELS_ROLE: Record<string, string> = {
   admin: "Admin",
@@ -30,15 +24,6 @@ const LABELS_POLE: Record<string, string> = {
   boulangerie: "Boulangerie",
   fastfood: "Fast-Food",
 };
-
-const ROLES_CUISINE = [
-  "chef_patisserie",
-  "chef_boulangerie",
-  "chef_fastfood",
-  "equipier_patisserie",
-  "equipier_boulangerie",
-  "equipier_fastfood",
-];
 
 function KpiCard({
   label,
@@ -72,7 +57,7 @@ function QuickLink({
 }: {
   href: string;
   label: string;
-  Icon: (props: { className?: string }) => React.ReactNode;
+  Icon: ComponentType<{ className?: string }>;
 }) {
   return (
     <Link
@@ -92,13 +77,6 @@ export default async function Home() {
   const role = profile.role;
 
   const isGestion = role === "admin" || role === "pdg" || role === "manager";
-  const canManageCatalogue = role === "admin" || role === "manager";
-  const canUsePos = ["admin", "manager", "caissiere"].includes(role);
-  const canUseKds = role === "admin" || role === "manager" || ROLES_CUISINE.includes(role);
-  const canUseStock =
-    role === "admin" ||
-    role === "manager" ||
-    ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role);
 
   const debutJournee = new Date();
   debutJournee.setHours(0, 0, 0, 0);
@@ -107,14 +85,7 @@ export default async function Home() {
   const heure = new Date().getHours();
   const salutation = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
 
-  const quickLinks = [
-    isGestion && { href: "/dashboard", label: "Tableau de bord", Icon: IconChart },
-    canUsePos && { href: "/pos", label: "Prise de commande", Icon: IconCart },
-    canUseKds && { href: "/kds", label: "Cuisine", Icon: IconChefHat },
-    role === "caissiere" && { href: "/caisse", label: "Caisse", Icon: IconWallet },
-    canUseStock && { href: "/stock", label: "Stock", Icon: IconBox },
-    canManageCatalogue && { href: "/admin/produits", label: "Catalogue produits", Icon: IconBook },
-  ].filter(Boolean) as { href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode }[];
+  const quickLinks = navItemsPour(role);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8">
@@ -152,7 +123,7 @@ export default async function Home() {
           <h2 className="mb-3 text-sm font-bold text-ink-soft">Accès rapide</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {quickLinks.map((q) => (
-              <QuickLink key={q.href} href={q.href} label={q.label} Icon={q.Icon} />
+              <QuickLink key={q.href} href={q.href} label={q.label} Icon={q.icon} />
             ))}
           </div>
         </div>
@@ -187,7 +158,7 @@ async function ResumeGestion({
     );
   }
 
-  const [{ data: commandesJour }, { data: sessionsJour }, { data: ingredients }] =
+  const [{ data: commandesJour }, { data: sessionsJour }, { data: ingredients }, { data: depensesJour }] =
     await Promise.all([
       supabase
         .from("commandes")
@@ -196,17 +167,26 @@ async function ResumeGestion({
         .gte("created_at", debutJourneeIso),
       supabase
         .from("sessions_caisse")
-        .select("statut")
+        .select("statut, ecart")
         .in("restaurant_id", ids)
         .gte("ouverte_at", debutJourneeIso),
       supabase.from("ingredients").select("stock_actuel, seuil_alerte").in("restaurant_id", ids),
+      supabase
+        .from("transactions_caisse")
+        .select("montant, sessions_caisse!inner(restaurant_id)")
+        .eq("type", "depense")
+        .in("sessions_caisse.restaurant_id", ids)
+        .gte("created_at", debutJourneeIso),
     ]);
 
   const caJour = (commandesJour ?? [])
     .filter((c) => c.statut === "payee")
     .reduce((s, c) => s + Number(c.total), 0);
   const nbCommandes = (commandesJour ?? []).length;
+  const commandesAnnulees = (commandesJour ?? []).filter((c) => c.statut === "annulee").length;
   const sessionsOuvertes = (sessionsJour ?? []).filter((s) => s.statut === "ouverte").length;
+  const ecartJour = (sessionsJour ?? []).reduce((s, x) => s + Number(x.ecart ?? 0), 0);
+  const depensesTotal = (depensesJour ?? []).reduce((s, t) => s + Number(t.montant), 0);
   const alertesStock = (ingredients ?? []).filter(
     (i) => Number(i.stock_actuel) <= Number(i.seuil_alerte),
   ).length;
@@ -222,7 +202,18 @@ async function ResumeGestion({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="CA du jour" valeur={`${caJour.toLocaleString("fr-FR")} F`} accent="green" />
         <KpiCard label="Commandes" valeur={String(nbCommandes)} />
+        <KpiCard label="Dépenses" valeur={`${depensesTotal.toLocaleString("fr-FR")} F`} />
+        <KpiCard
+          label="Ventes annulées"
+          valeur={String(commandesAnnulees)}
+          accent={commandesAnnulees === 0 ? undefined : "red"}
+        />
         <KpiCard label="Caisses ouvertes" valeur={String(sessionsOuvertes)} />
+        <KpiCard
+          label="Écart de caisse"
+          valeur={`${ecartJour.toLocaleString("fr-FR")} F`}
+          accent={ecartJour === 0 ? undefined : "red"}
+        />
         <KpiCard
           label="Alertes stock"
           valeur={String(alertesStock)}

@@ -7,23 +7,8 @@ import { useState } from "react";
 import type { Profile } from "@/lib/auth";
 import { signOut } from "@/lib/auth-actions";
 import { NotificationBell, type NotificationItem } from "@/components/NotificationBell";
-import {
-  IconHome,
-  IconChart,
-  IconCart,
-  IconChefHat,
-  IconWallet,
-  IconBox,
-  IconBook,
-  IconAlert,
-  IconUsers,
-  IconLogOut,
-  IconMenu,
-  IconClose,
-  IconArrowLeft,
-  IconShield,
-  IconClipboard,
-} from "@/components/icons";
+import { IconHome, IconLogOut, IconMenu, IconClose, IconArrowLeft } from "@/components/icons";
+import { navItemsPour } from "@/lib/nav";
 
 const LABELS_ROLE: Record<string, string> = {
   admin: "Admin",
@@ -39,57 +24,6 @@ const LABELS_ROLE: Record<string, string> = {
   caissiere: "Caissière",
 };
 
-const ROLES_CUISINE = [
-  "chef_patisserie",
-  "chef_boulangerie",
-  "chef_fastfood",
-  "equipier_patisserie",
-  "equipier_boulangerie",
-  "equipier_fastfood",
-];
-
-function navItemsPour(role: string) {
-  const isGestion = role === "admin" || role === "manager";
-  const items = [{ href: "/", label: "Accueil", icon: IconHome }];
-
-  if (["admin", "pdg", "manager"].includes(role)) {
-    items.push({ href: "/dashboard", label: "Tableau de bord", icon: IconChart });
-    items.push({ href: "/admin/rapports", label: "Rapports", icon: IconClipboard });
-  }
-  if (["admin", "manager", "caissiere"].includes(role)) {
-    items.push({ href: "/pos", label: "Prise de commande", icon: IconCart });
-  }
-  if (isGestion || ROLES_CUISINE.includes(role)) {
-    items.push({ href: "/kds", label: "Cuisine", icon: IconChefHat });
-  }
-  if (role === "caissiere" || isGestion) {
-    items.push({ href: "/caisse", label: "Caisse", icon: IconWallet });
-  }
-  if (isGestion || role === "pdg") {
-    items.push({ href: "/admin/caisse", label: "Suivi caisse", icon: IconWallet });
-  }
-  if (isGestion || ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role)) {
-    items.push({ href: "/stock", label: "Stock", icon: IconBox });
-  }
-  if (
-    ["admin", "manager", "comptable", "chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(
-      role,
-    )
-  ) {
-    items.push({ href: "/approvisionnement", label: "Approvisionnement", icon: IconAlert });
-  }
-  if (isGestion) {
-    items.push({ href: "/admin/produits", label: "Catalogue produits", icon: IconBook });
-  }
-  if (isGestion) {
-    items.push({ href: "/admin/journal", label: "Journal d'audit", icon: IconShield });
-  }
-  if (role === "admin") {
-    items.push({ href: "/admin/utilisateurs", label: "Utilisateurs", icon: IconUsers });
-  }
-  return items;
-}
-
 export function AppShell({
   profile,
   restaurantNom,
@@ -104,7 +38,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOuvert, setMenuOuvert] = useState(false);
-  const items = navItemsPour(profile.role);
+  const items = [{ href: "/", label: "Accueil", icon: IconHome }, ...navItemsPour(profile.role)];
 
   return (
     <div className="min-h-screen lg:flex">
