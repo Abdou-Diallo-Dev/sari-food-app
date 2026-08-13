@@ -15,3 +15,9 @@ export const LABELS_STATUT: Record<string, string> = {
   payee: "Payée",
   annulee: "Annulée",
 };
+
+export const LABELS_CANAL: Record<string, string> = {
+  sur_place: "Sur place",
+  emporter: "À emporter",
+  livraison: "Livraison",
+};

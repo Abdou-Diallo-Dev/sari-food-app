@@ -25,24 +25,211 @@ const LABELS_CATEGORIE_DEPENSE: Record<string, string> = {
   divers: "Divers",
 };
 
+type SessionPrecedente = {
+  id: string;
+  shift: "matin" | "soir";
+  fond_initial_especes: number;
+  fond_initial_wave: number;
+  fond_initial_orange_money: number;
+  total_compte: number | null;
+  total_compte_especes: number | null;
+  ecart_especes: number | null;
+  ouverte_at: string;
+  cloturee_at: string | null;
+};
+
+type TransactionSession = {
+  id: string;
+  session_id: string;
+  type: "encaissement" | "depense";
+  montant: number;
+  moyen_paiement: string | null;
+  categorie_depense: string | null;
+  libelle: string | null;
+  created_at: string;
+};
+
+function heure(iso: string) {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function dateCourte(iso: string) {
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+
+function SectionSessionsPrecedentes({
+  sessions,
+  transactionsParSession,
+}: {
+  sessions: SessionPrecedente[];
+  transactionsParSession: Map<string, TransactionSession[]>;
+}) {
+  return (
+    <section className="rounded-card border border-line bg-surface p-5">
+      <h2 className="mb-3 font-bold text-ink">Mes sessions précédentes</h2>
+      {sessions.length === 0 ? (
+        <p className="text-sm text-ink-soft opacity-70">Aucune session clôturée pour le moment.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {sessions.map((s) => {
+            const txns = transactionsParSession.get(s.id) ?? [];
+            return (
+              <details key={s.id} className="rounded-[14px] border border-line bg-paper p-4">
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-ink">
+                    {s.shift === "matin" ? "Matin" : "Soir"}{" "}
+                    <span className="font-normal text-ink-soft">
+                      · {dateCourte(s.ouverte_at)}
+                      {s.cloturee_at && ` · clôturée à ${heure(s.cloturee_at)}`}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="font-bold text-ink">
+                      {s.total_compte !== null
+                        ? `${Number(s.total_compte).toLocaleString("fr-FR")} F`
+                        : "—"}
+                    </span>
+                    {s.ecart_especes !== null && (
+                      <span
+                        className={`text-xs font-bold ${
+                          Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"
+                        }`}
+                      >
+                        Écart espèces {Number(s.ecart_especes) >= 0 ? "+" : ""}
+                        {Number(s.ecart_especes).toLocaleString("fr-FR")} F
+                      </span>
+                    )}
+                  </span>
+                </summary>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {MOYENS_PAIEMENT_CAISSE.map((m) => {
+                    const fondInitial =
+                      m.value === "especes"
+                        ? Number(s.fond_initial_especes)
+                        : m.value === "wave"
+                          ? Number(s.fond_initial_wave)
+                          : Number(s.fond_initial_orange_money);
+                    const { encaisse, depense } = totauxParMoyen(txns, m.value);
+                    const theorique = fondInitial + encaisse - depense;
+                    return (
+                      <div
+                        key={m.value}
+                        className="rounded-[10px] border border-line bg-surface p-2.5 text-sm"
+                      >
+                        <div className="mb-1 font-bold text-ink">{m.label}</div>
+                        <div className="flex justify-between text-xs text-ink-soft">
+                          <span>Initial</span>
+                          <span>{fondInitial.toLocaleString("fr-FR")} F</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-ink-soft">
+                          <span>Encaissé</span>
+                          <span className="text-green">{encaisse.toLocaleString("fr-FR")} F</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-ink-soft">
+                          <span>Dépenses</span>
+                          <span>{depense.toLocaleString("fr-FR")} F</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-bold text-ink">
+                          <span>Théorique</span>
+                          <span>{theorique.toLocaleString("fr-FR")} F</span>
+                        </div>
+                        {m.value === "especes" && s.total_compte_especes !== null && (
+                          <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
+                            <span className="text-ink-soft">Compté</span>
+                            <span className="text-ink">
+                              {Number(s.total_compte_especes).toLocaleString("fr-FR")} F
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {txns.length > 0 && (
+                  <ul className="mt-3 flex flex-col gap-1.5 border-t border-line pt-3">
+                    {txns.map((t) => (
+                      <li
+                        key={t.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] bg-surface px-3 py-1.5 text-sm"
+                      >
+                        <span className="text-ink-soft">
+                          {heure(t.created_at)} ·{" "}
+                          {t.type === "encaissement"
+                            ? (LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement)
+                            : `${LABELS_CATEGORIE_DEPENSE[t.categorie_depense ?? ""] ?? t.categorie_depense} (${
+                                LABELS_MOYEN[t.moyen_paiement ?? ""] ?? t.moyen_paiement
+                              })`}
+                          {t.libelle && ` · ${t.libelle}`}
+                        </span>
+                        <span
+                          className={`font-bold ${
+                            t.type === "encaissement" ? "text-green" : "text-red-600"
+                          }`}
+                        >
+                          {t.type === "encaissement" ? "+" : "−"}
+                          {Number(t.montant).toLocaleString("fr-FR")} F
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </details>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default async function CaissePage() {
   const profile = await requireProfile();
   requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const supabase = await createClient();
 
-  const { data: session } = await supabase
-    .from("sessions_caisse")
-    .select(
-      "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, ouverte_at",
-    )
-    .eq("caissiere_id", profile.id)
-    .eq("statut", "ouverte")
-    .maybeSingle();
+  const [{ data: session }, { data: sessionsPrecedentes }] = await Promise.all([
+    supabase
+      .from("sessions_caisse")
+      .select(
+        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, ouverte_at",
+      )
+      .eq("caissiere_id", profile.id)
+      .eq("statut", "ouverte")
+      .maybeSingle(),
+    supabase
+      .from("sessions_caisse")
+      .select(
+        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, ouverte_at, cloturee_at",
+      )
+      .eq("caissiere_id", profile.id)
+      .eq("statut", "cloturee")
+      .order("cloturee_at", { ascending: false })
+      .limit(15),
+  ]);
+
+  const idsSessionsPrecedentes = (sessionsPrecedentes ?? []).map((s) => s.id);
+  const { data: transactionsPrecedentes } =
+    idsSessionsPrecedentes.length > 0
+      ? await supabase
+          .from("transactions_caisse")
+          .select("id, session_id, type, montant, moyen_paiement, categorie_depense, libelle, created_at")
+          .in("session_id", idsSessionsPrecedentes)
+          .order("created_at", { ascending: true })
+      : { data: [] as TransactionSession[] };
+
+  const transactionsParSession = new Map<string, TransactionSession[]>();
+  for (const t of (transactionsPrecedentes ?? []) as TransactionSession[]) {
+    const liste = transactionsParSession.get(t.session_id) ?? [];
+    liste.push(t);
+    transactionsParSession.set(t.session_id, liste);
+  }
 
   if (!session) {
     return (
-      <div className="mx-auto flex max-w-md flex-col gap-6">
+      <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
           <IconWallet className="h-6 w-6 text-orange" />
           Caisse
@@ -99,6 +286,11 @@ export default async function CaissePage() {
             Ouvrir
           </button>
         </form>
+
+        <SectionSessionsPrecedentes
+          sessions={sessionsPrecedentes ?? []}
+          transactionsParSession={transactionsParSession}
+        />
       </div>
     );
   }
@@ -334,6 +526,11 @@ export default async function CaissePage() {
           </button>
         </form>
       </section>
+
+      <SectionSessionsPrecedentes
+        sessions={sessionsPrecedentes ?? []}
+        transactionsParSession={transactionsParSession}
+      />
     </div>
   );
 }

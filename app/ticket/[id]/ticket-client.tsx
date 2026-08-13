@@ -1,8 +1,10 @@
 "use client";
 
+import { LABELS_CANAL } from "@/lib/commandes";
+
 export type TicketCommande = {
   numero: number;
-  canal: "sur_place" | "emporter";
+  canal: "sur_place" | "emporter" | "livraison";
   total: number;
   created_at: string;
   restaurantNom: string;
@@ -79,7 +81,7 @@ export function TicketClient({
           </div>
           <div className="flex justify-between">
             <span className="text-ink-soft">Type</span>
-            <span>{commande.canal === "sur_place" ? "Sur place" : "À emporter"}</span>
+            <span>{LABELS_CANAL[commande.canal] ?? commande.canal}</span>
           </div>
         </div>
 

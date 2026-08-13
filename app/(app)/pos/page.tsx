@@ -1,7 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PosClient, type ProduitPos } from "./pos-client";
-import { LABELS_STATUT } from "@/lib/commandes";
+import { LABELS_STATUT, LABELS_CANAL } from "@/lib/commandes";
 import { IconCart } from "@/components/icons";
 
 export default async function PosPage() {
@@ -70,7 +70,7 @@ export default async function PosPage() {
                 <span className="font-bold text-ink">
                   n°{c.numero}{" "}
                   <span className="font-normal text-ink-soft">
-                    · {c.canal === "sur_place" ? "Sur place" : "À emporter"} ·{" "}
+                    · {LABELS_CANAL[c.canal] ?? c.canal} ·{" "}
                     {new Date(c.created_at).toLocaleTimeString("fr-FR", {
                       hour: "2-digit",
                       minute: "2-digit",

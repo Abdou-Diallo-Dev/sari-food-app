@@ -13,7 +13,7 @@ export type PanierItem = {
 };
 
 export async function createCommande(
-  canal: "sur_place" | "emporter",
+  canal: "sur_place" | "emporter" | "livraison",
   items: PanierItem[],
   moyenPaiement: MoyenPaiementCaisse,
 ): Promise<{ error?: string; success?: true; numero?: number; id?: string }> {

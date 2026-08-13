@@ -2,12 +2,12 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { annulerCommande } from "./actions";
 import { BoutonAnnulation } from "@/components/BoutonAnnulation";
-import { STATUTS_ORDRE, LABELS_STATUT } from "@/lib/commandes";
+import { STATUTS_ORDRE, LABELS_STATUT, LABELS_CANAL } from "@/lib/commandes";
 
 type CommandeJour = {
   id: string;
   numero: number;
-  canal: "sur_place" | "emporter";
+  canal: "sur_place" | "emporter" | "livraison";
   statut: string;
   motif_annulation: string | null;
   total: number;
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
                               <span className="font-bold text-ink">
                                 n°{cmd.numero}{" "}
                                 <span className="font-normal text-ink-soft">
-                                  · {cmd.canal === "sur_place" ? "Sur place" : "À emporter"} ·{" "}
+                                  · {LABELS_CANAL[cmd.canal] ?? cmd.canal} ·{" "}
                                   {new Date(cmd.created_at).toLocaleTimeString("fr-FR", {
                                     hour: "2-digit",
                                     minute: "2-digit",

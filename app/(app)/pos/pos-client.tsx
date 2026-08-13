@@ -20,7 +20,7 @@ const POLES = [
 
 export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const [panier, setPanier] = useState<Record<string, PanierItem>>({});
-  const [canal, setCanal] = useState<"sur_place" | "emporter">("sur_place");
+  const [canal, setCanal] = useState<"sur_place" | "emporter" | "livraison">("sur_place");
   const [moyenPaiement, setMoyenPaiement] = useState<MoyenPaiementCaisse>("especes");
   const [message, setMessage] = useState<{ type: "success" | "error"; texte: string } | null>(
     null,
@@ -131,7 +131,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
         <h2 className="font-display text-lg font-extrabold text-ink">Panier</h2>
 
         <div className="flex gap-2">
-          {(["sur_place", "emporter"] as const).map((c) => (
+          {(["sur_place", "emporter", "livraison"] as const).map((c) => (
             <button
               key={c}
               onClick={() => setCanal(c)}
@@ -141,7 +141,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                   : "border-line bg-paper text-ink-soft"
               }`}
             >
-              {c === "sur_place" ? "Sur place" : "À emporter"}
+              {c === "sur_place" ? "Sur place" : c === "emporter" ? "À emporter" : "Livraison"}
             </button>
           ))}
         </div>

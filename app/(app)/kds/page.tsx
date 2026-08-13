@@ -2,6 +2,7 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { demarrerLigne, terminerLigne } from "./actions";
 import { IconChefHat } from "@/components/icons";
+import { LABELS_CANAL } from "@/lib/commandes";
 
 const POLES = [
   { value: "patisserie", label: "Pâtisserie" },
@@ -18,7 +19,7 @@ type LigneKds = {
   commandes: {
     id: string;
     numero: number;
-    canal: "sur_place" | "emporter";
+    canal: "sur_place" | "emporter" | "livraison";
     created_at: string;
   } | null;
 };
@@ -140,7 +141,7 @@ export default async function KdsPage({
                   Commande n°{c.numero}
                 </span>
                 <span className="rounded-[7px] bg-paper px-2 py-0.5 text-xs font-bold text-ink-soft">
-                  {c.canal === "sur_place" ? "Sur place" : "À emporter"}
+                  {LABELS_CANAL[c.canal] ?? c.canal}
                 </span>
               </div>
 
@@ -197,7 +198,7 @@ export default async function KdsPage({
                     Commande n°{c.numero}
                   </span>
                   <span className="rounded-[7px] bg-surface px-2 py-0.5 text-xs font-bold text-ink-soft">
-                    {c.canal === "sur_place" ? "Sur place" : "À emporter"}
+                    {LABELS_CANAL[c.canal] ?? c.canal}
                   </span>
                 </div>
                 <ul className="flex flex-col gap-1.5">
