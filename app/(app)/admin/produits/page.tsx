@@ -33,7 +33,7 @@ type Categorie = {
   produits: Produit[];
 };
 
-type Ingredient = { id: string; nom: string; unite: string };
+type Ingredient = { id: string; nom: string; unite: string; cout_unitaire: number };
 type LigneRecette = { ingredient_id: string; quantite_utilisee: number };
 
 export default async function ProduitsPage() {
@@ -53,7 +53,7 @@ export default async function ProduitsPage() {
         .order("nom"),
       supabase
         .from("ingredients")
-        .select("id, nom, unite")
+        .select("id, nom, unite, cout_unitaire")
         .order("nom"),
       supabase
         .from("recettes")
@@ -140,6 +140,13 @@ export default async function ProduitsPage() {
                         (i) => !ingredientsDejaUtilises.has(i.id),
                       );
 
+                      const coutMatiere = ligneRecette.reduce((total, l) => {
+                        const ing = ingredientsParId.get(l.ingredient_id);
+                        return total + l.quantite_utilisee * (ing ? Number(ing.cout_unitaire) : 0);
+                      }, 0);
+                      const marge = p.prix - coutMatiere;
+                      const margePct = p.prix > 0 ? Math.round((marge / p.prix) * 100) : 0;
+
                       return (
                         <li key={p.id}>
                           <form className="flex items-center gap-2 text-sm text-ink">
@@ -175,6 +182,15 @@ export default async function ProduitsPage() {
                               <IconTrash className="h-4 w-4" />
                             </button>
                           </form>
+
+                          {ligneRecette.length > 0 && (
+                            <p className="ml-1.5 text-xs text-ink-soft opacity-80">
+                              Coût matière : {coutMatiere.toLocaleString("fr-FR")} F · Marge :{" "}
+                              <span className={marge >= 0 ? "font-bold text-green" : "font-bold text-red-600"}>
+                                {marge.toLocaleString("fr-FR")} F ({margePct}%)
+                              </span>
+                            </p>
+                          )}
 
                           <details className="ml-1.5 mt-1">
                             <summary className="cursor-pointer text-xs font-bold text-ink-soft hover:text-orange">

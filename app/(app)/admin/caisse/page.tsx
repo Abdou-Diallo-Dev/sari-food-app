@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { IconWallet } from "@/components/icons";
@@ -50,15 +51,31 @@ function heure(iso: string) {
   return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
-export default async function AdminCaissePage() {
+function decalerJour(date: string, delta: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+export default async function AdminCaissePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager"]);
+  requireRole(profile, ["admin", "pdg", "manager"]);
+
+  const { date: dateParam } = await searchParams;
+  const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : new Date().toISOString().slice(0, 10);
+  const estAujourdhui = date === new Date().toISOString().slice(0, 10);
+
+  const debutJournee = new Date(date + "T00:00:00");
+  const finJournee = new Date(debutJournee);
+  finJournee.setDate(finJournee.getDate() + 1);
+  const debutJourneeIso = debutJournee.toISOString();
+  const finJourneeIso = finJournee.toISOString();
 
   const supabase = await createClient();
-
-  const debutJournee = new Date();
-  debutJournee.setHours(0, 0, 0, 0);
-  const debutJourneeIso = debutJournee.toISOString();
 
   let restaurantsQuery = supabase.from("restaurants").select("id, nom").order("nom");
   if (profile.role === "manager" && profile.restaurant_id) {
@@ -75,6 +92,7 @@ export default async function AdminCaissePage() {
         )
         .eq("restaurant_id", r.id)
         .gte("ouverte_at", debutJourneeIso)
+        .lt("ouverte_at", finJourneeIso)
         .order("ouverte_at", { ascending: false });
 
       const sessionsTypees = (sessions ?? []) as unknown as Omit<Session, "transactions">[];
@@ -101,6 +119,30 @@ export default async function AdminCaissePage() {
         Caisse — supervision
       </h1>
 
+      <div className="flex items-center gap-2">
+        <Link
+          href={`/admin/caisse?date=${decalerJour(date, -1)}`}
+          className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+        >
+          ‹
+        </Link>
+        <span className="rounded-[9px] border border-line bg-surface px-3 py-1.5 text-sm font-bold text-ink">
+          {new Date(date + "T00:00:00").toLocaleDateString("fr-FR", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+          })}
+        </span>
+        {!estAujourdhui && (
+          <Link
+            href={`/admin/caisse?date=${decalerJour(date, 1)}`}
+            className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+          >
+            ›
+          </Link>
+        )}
+      </div>
+
       {parRestaurant.length === 0 ? (
         <p className="text-ink-soft opacity-70">Aucun restaurant à afficher.</p>
       ) : (
@@ -111,7 +153,7 @@ export default async function AdminCaissePage() {
 
               {sessions.length === 0 ? (
                 <p className="text-sm text-ink-soft opacity-70">
-                  Aucune session de caisse aujourd&apos;hui.
+                  Aucune session de caisse {estAujourdhui ? "aujourd'hui" : "ce jour-là"}.
                 </p>
               ) : (
                 <div className="flex flex-col gap-3">

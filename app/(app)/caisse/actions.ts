@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
+import { journaliser } from "@/lib/audit";
 
 export async function ouvrirSession(formData: FormData) {
   const profile = await requireProfile();
@@ -104,10 +105,13 @@ export async function cloturerSession(formData: FormData) {
 
   const { data: session } = await supabase
     .from("sessions_caisse")
-    .select("fond_initial_especes, fond_initial_wave, fond_initial_orange_money")
+    .select("fond_initial_especes, fond_initial_wave, fond_initial_orange_money, restaurant_id, statut")
     .eq("id", sessionId)
     .single();
   if (!session) return;
+  if (session.statut !== "ouverte") {
+    throw new Error("Cette session de caisse est déjà clôturée.");
+  }
 
   const { data: transactions } = await supabase
     .from("transactions_caisse")
@@ -128,7 +132,7 @@ export async function cloturerSession(formData: FormData) {
   // Wave/Orange Money : pas de comptage physique possible, on retient le théorique.
   const total_compte = total_compte_especes + theoriqueWave + theoriqueOrangeMoney;
 
-  await supabase
+  const { data: cloture, error } = await supabase
     .from("sessions_caisse")
     .update({
       total_theorique,
@@ -139,7 +143,23 @@ export async function cloturerSession(formData: FormData) {
       statut: "cloturee",
       cloturee_at: new Date().toISOString(),
     })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .eq("statut", "ouverte")
+    .select("id");
+
+  if (error || !cloture || cloture.length === 0) {
+    throw new Error("Cette session de caisse est déjà clôturée.");
+  }
+
+  await journaliser(supabase, {
+    restaurantId: session.restaurant_id,
+    utilisateurId: profile.id,
+    action: "cloture_caisse",
+    entite: "sessions_caisse",
+    entiteId: sessionId,
+    avant: { statut: "ouverte" },
+    apres: { statut: "cloturee", total_theorique, total_compte, ecart: ecart_especes },
+  });
 
   revalidatePath("/caisse");
   revalidatePath("/admin/caisse");

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { journaliser } from "@/lib/audit";
 
 export async function annulerCommande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
@@ -15,6 +16,12 @@ export async function annulerCommande(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
 
+  const { data: avant } = await supabase
+    .from("commandes")
+    .select("statut, total, restaurant_id")
+    .eq("id", id)
+    .single();
+
   const { data, error } = await supabase
     .from("commandes")
     .update({ statut: "annulee", motif_annulation: motif })
@@ -26,6 +33,18 @@ export async function annulerCommande(formData: FormData): Promise<void> {
     throw new Error(
       "Annulation impossible : la commande a déjà été encaissée ou annulée.",
     );
+  }
+
+  if (avant) {
+    await journaliser(supabase, {
+      restaurantId: avant.restaurant_id,
+      utilisateurId: profile.id,
+      action: "annulation_vente",
+      entite: "commandes",
+      entiteId: id,
+      avant: { statut: avant.statut, total: avant.total },
+      apres: { statut: "annulee", motif_annulation: motif },
+    });
   }
 
   revalidatePath("/dashboard");

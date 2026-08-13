@@ -21,6 +21,8 @@ import {
   IconMenu,
   IconClose,
   IconArrowLeft,
+  IconShield,
+  IconClipboard,
 } from "@/components/icons";
 
 const LABELS_ROLE: Record<string, string> = {
@@ -52,6 +54,7 @@ function navItemsPour(role: string) {
 
   if (["admin", "pdg", "manager"].includes(role)) {
     items.push({ href: "/dashboard", label: "Tableau de bord", icon: IconChart });
+    items.push({ href: "/admin/rapports", label: "Rapports", icon: IconClipboard });
   }
   if (["admin", "manager", "caissiere"].includes(role)) {
     items.push({ href: "/pos", label: "Prise de commande", icon: IconCart });
@@ -62,7 +65,7 @@ function navItemsPour(role: string) {
   if (role === "caissiere" || isGestion) {
     items.push({ href: "/caisse", label: "Caisse", icon: IconWallet });
   }
-  if (isGestion) {
+  if (isGestion || role === "pdg") {
     items.push({ href: "/admin/caisse", label: "Suivi caisse", icon: IconWallet });
   }
   if (isGestion || ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role)) {
@@ -77,6 +80,9 @@ function navItemsPour(role: string) {
   }
   if (isGestion) {
     items.push({ href: "/admin/produits", label: "Catalogue produits", icon: IconBook });
+  }
+  if (isGestion) {
+    items.push({ href: "/admin/journal", label: "Journal d'audit", icon: IconShield });
   }
   if (role === "admin") {
     items.push({ href: "/admin/utilisateurs", label: "Utilisateurs", icon: IconUsers });

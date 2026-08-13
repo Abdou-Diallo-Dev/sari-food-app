@@ -174,3 +174,22 @@ export function IconTrash({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconClipboard({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M8.5 4.5h7a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z" />
+      <path d="M9.5 4.5V3.8a1.3 1.3 0 0 1 1.3-1.3h2.4a1.3 1.3 0 0 1 1.3 1.3v.7" />
+      <path d="M9 10.5h6M9 13.5h6M9 16.5h3.5" />
+    </svg>
+  );
+}
+
+export function IconShield({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 3.5 5 6v5.5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-2.5Z" />
+      <path d="M9 12l2 2 4-4.5" />
+    </svg>
+  );
+}

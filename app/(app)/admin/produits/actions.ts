@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { journaliser } from "@/lib/audit";
 
 export async function createCategorie(formData: FormData) {
   const profile = await requireProfile();
@@ -46,7 +47,25 @@ export async function toggleProduitActif(produitId: string, actif: boolean) {
   requireRole(profile, ["admin", "manager"]);
 
   const supabase = await createClient();
+  const { data: avant } = await supabase
+    .from("produits")
+    .select("actif, restaurant_id")
+    .eq("id", produitId)
+    .single();
+
   await supabase.from("produits").update({ actif }).eq("id", produitId);
+
+  if (avant) {
+    await journaliser(supabase, {
+      restaurantId: avant.restaurant_id,
+      utilisateurId: profile.id,
+      action: actif ? "activation_produit" : "desactivation_produit",
+      entite: "produits",
+      entiteId: produitId,
+      avant: { actif: avant.actif },
+      apres: { actif },
+    });
+  }
 
   revalidatePath("/admin/produits");
 }
@@ -89,7 +108,25 @@ export async function updateProduit(formData: FormData) {
   if (!id || !nom || !Number.isFinite(prix) || prix <= 0) return;
 
   const supabase = await createClient();
+  const { data: avant } = await supabase
+    .from("produits")
+    .select("nom, prix, restaurant_id")
+    .eq("id", id)
+    .single();
+
   await supabase.from("produits").update({ nom, prix }).eq("id", id);
+
+  if (avant) {
+    await journaliser(supabase, {
+      restaurantId: avant.restaurant_id,
+      utilisateurId: profile.id,
+      action: "modification_produit",
+      entite: "produits",
+      entiteId: id,
+      avant: { nom: avant.nom, prix: avant.prix },
+      apres: { nom, prix },
+    });
+  }
 
   revalidatePath("/admin/produits");
 }
@@ -102,11 +139,31 @@ export async function deleteProduit(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
+  const { data: avant } = await supabase
+    .from("produits")
+    .select("nom, prix, restaurant_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("produits").delete().eq("id", id);
 
+  let action = "suppression_produit";
   if (error) {
     // déjà utilisé dans des commandes passées : on le désactive plutôt que de casser l'historique
     await supabase.from("produits").update({ actif: false }).eq("id", id);
+    action = "desactivation_produit";
+  }
+
+  if (avant) {
+    await journaliser(supabase, {
+      restaurantId: avant.restaurant_id,
+      utilisateurId: profile.id,
+      action,
+      entite: "produits",
+      entiteId: id,
+      avant: { nom: avant.nom, prix: avant.prix },
+      apres: null,
+    });
   }
 
   revalidatePath("/admin/produits");

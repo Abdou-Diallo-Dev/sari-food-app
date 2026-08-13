@@ -37,7 +37,7 @@ export default async function StockPage() {
   const [{ data: ingredients }, { data: demandesEnCours }] = await Promise.all([
     supabase
       .from("ingredients")
-      .select("id, nom, categorie, unite, stock_actuel, seuil_alerte, stock_max, actif")
+      .select("id, nom, categorie, unite, stock_actuel, seuil_alerte, stock_max, cout_unitaire, actif")
       .eq("actif", true)
       .order("nom"),
     peutDemanderAppro
@@ -113,6 +113,7 @@ export default async function StockPage() {
                     <span className="mb-2 block text-xs text-ink-soft opacity-70">
                       Seuil d&apos;alerte : {seuil.toLocaleString("fr-FR")} {ing.unite}
                       {ing.stock_max ? ` · Référence : ${Number(ing.stock_max).toLocaleString("fr-FR")} ${ing.unite}` : ""}
+                      {` · Coût : ${Number(ing.cout_unitaire).toLocaleString("fr-FR")} F/${ing.unite}`}
                     </span>
 
                     {peutCreerIngredient && (
@@ -149,6 +150,16 @@ export default async function StockPage() {
                           step="0.01"
                           placeholder="Réf. max"
                           title="Quantité de référence pour la barre de suivi"
+                          className="w-20 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink placeholder:text-ink-soft placeholder:opacity-60 hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          name="cout_unitaire"
+                          defaultValue={ing.cout_unitaire}
+                          min={0}
+                          step="0.01"
+                          placeholder="Coût/unité"
+                          title="Coût d'achat par unité (F)"
                           className="w-20 rounded-[7px] border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink placeholder:text-ink-soft placeholder:opacity-60 hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
                         />
                         <button
@@ -276,6 +287,15 @@ export default async function StockPage() {
                   step="0.01"
                   placeholder="Quantité de référence (optionnel)"
                   className="w-48 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                />
+                <input
+                  type="number"
+                  name="cout_unitaire"
+                  min={0}
+                  step="0.01"
+                  placeholder="Coût/unité (optionnel)"
+                  title="Coût d'achat par unité (F)"
+                  className="w-40 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
                 />
                 <button
                   type="submit"
