@@ -37,6 +37,13 @@ type ProductionEmploye = {
   temps_moyen_minutes: number | null;
 };
 type CaQuotidien = { jour: string; ca: number };
+type SessionEcart = {
+  id: string;
+  shift: "matin" | "soir";
+  ecart: number;
+  cloturee_at: string;
+  utilisateurs: { nom: string } | null;
+};
 
 function CarteResume({
   label,
@@ -115,6 +122,7 @@ export default async function RapportsPage({
     { data: employesData },
     { data: caQuotidienneData },
     { data: margeData },
+    { data: ecartsData },
   ] = await Promise.all([
     supabase
       .rpc("rapport_resume", {
@@ -148,6 +156,14 @@ export default async function RapportsPage({
       p_debut: debut.toISOString(),
       p_fin: fin.toISOString(),
     }),
+    supabase
+      .from("sessions_caisse")
+      .select("id, shift, ecart, cloturee_at, utilisateurs(nom)")
+      .eq("restaurant_id", restaurant.id)
+      .not("ecart", "is", null)
+      .gte("cloturee_at", debut.toISOString())
+      .lt("cloturee_at", fin.toISOString())
+      .order("cloturee_at", { ascending: false }),
   ]);
 
   const r = resumeData as ResumeRapport | null;
@@ -159,6 +175,9 @@ export default async function RapportsPage({
     valeur: Number(j.ca),
   }));
   const marges = (margeData ?? []) as MargeProduit[];
+  const ecarts = ((ecartsData ?? []) as unknown as SessionEcart[]).filter(
+    (s) => Number(s.ecart) !== 0,
+  );
   const coutMatiereTotal = marges.reduce((total, m) => total + Number(m.cout_matiere), 0);
   const margeBrute = marges.reduce((total, m) => total + Number(m.marge), 0);
   const caMarges = marges.reduce((total, m) => total + Number(m.ca), 0);
@@ -278,6 +297,46 @@ export default async function RapportsPage({
             <CarteResume label="Production" valeur={Number(r.production_total)} />
             <CarteResume label="Sessions de caisse" valeur={Number(r.nb_sessions_caisse)} />
           </div>
+
+          {Number(r.ecart_caisse_total) !== 0 && (
+            <div className="mt-5 border-t border-line pt-4">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
+                Détail des écarts de caisse
+              </h3>
+              {ecarts.length === 0 ? (
+                <p className="text-sm text-ink-soft opacity-70">
+                  Aucune session avec écart sur cette période.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {ecarts.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex flex-wrap items-center justify-between gap-1 rounded-[10px] border border-line bg-paper px-3 py-2 text-sm"
+                    >
+                      <span className="text-ink">{s.utilisateurs?.nom ?? "—"}</span>
+                      <span className="text-ink-soft">
+                        {s.shift === "matin" ? "Matin" : "Soir"} ·{" "}
+                        {new Date(s.cloturee_at).toLocaleDateString("fr-FR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </span>
+                      <Link
+                        href={`/admin/caisse?date=${s.cloturee_at.slice(0, 10)}`}
+                        className={`font-bold hover:underline ${
+                          Number(s.ecart) > 0 ? "text-green" : "text-red-600"
+                        }`}
+                      >
+                        {Number(s.ecart) >= 0 ? "+" : ""}
+                        {Number(s.ecart).toLocaleString("fr-FR")} F
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="mt-5 border-t border-line pt-4">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
