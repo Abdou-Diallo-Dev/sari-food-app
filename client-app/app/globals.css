@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: 251 249 245;
+  --surface: 255 255 255;
+  --ink: 33 28 23;
+  --ink-soft: 114 106 93;
+  --line: 234 227 214;
+  --orange: 248 80 0;
+  --green: 110 148 36;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: 20 18 13;
+    --surface: 30 26 19;
+    --ink: 243 238 228;
+    --ink-soft: 170 159 139;
+    --line: 51 44 33;
+    --orange: 255 106 38;
+    --green: 150 194 76;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: 20 18 13;
+  --surface: 30 26 19;
+  --ink: 243 238 228;
+  --ink-soft: 170 159 139;
+  --line: 51 44 33;
+  --orange: 255 106 38;
+  --green: 150 194 76;
+}
+
+body {
+  background-color: rgb(var(--paper));
+  color: rgb(var(--ink));
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
