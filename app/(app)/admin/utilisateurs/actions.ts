@@ -62,6 +62,11 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
   if (motDePasse.length < 8) {
     throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
   }
+  if (!/^[a-z0-9._-]+$/.test(identifiant)) {
+    throw new Error(
+      "L'identifiant ne doit contenir que des lettres, chiffres, points, tirets ou underscores (pas d'espaces ni d'accents). Ex : chef.cuisine",
+    );
+  }
 
   const admin = createAdminClient();
 
