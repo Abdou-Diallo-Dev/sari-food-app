@@ -10,6 +10,7 @@ import {
   IconUsers,
   IconShield,
   IconClipboard,
+  IconGauge,
 } from "@/components/icons";
 
 export const ROLES_CUISINE = [
@@ -43,6 +44,9 @@ export function navItemsPour(role: string): NavItem[] {
   }
   if (isGestion || ROLES_CUISINE.includes(role)) {
     items.push({ href: "/kds", label: "Cuisine", icon: IconChefHat });
+  }
+  if (role === "caissiere" || isGestion || ROLES_CUISINE.includes(role)) {
+    items.push({ href: "/production", label: "Production du jour", icon: IconGauge });
   }
   if (role === "caissiere" || isGestion) {
     items.push({ href: "/caisse", label: "Caisse", icon: IconWallet });

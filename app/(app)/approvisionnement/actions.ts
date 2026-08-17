@@ -80,6 +80,59 @@ export async function decaisserDemande(formData: FormData): Promise<void> {
   chemin();
 }
 
+const ROLES_CHEF = [
+  "chef_patisserie",
+  "chef_boulangerie",
+  "chef_fastfood",
+] as const;
+
+export async function modifierDemande(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, [...ROLES_CHEF]);
+
+  const id = String(formData.get("id") ?? "");
+  const quantite_demandee = Number(formData.get("quantite_demandee"));
+  if (!id) throw new Error("Demande introuvable.");
+  if (!Number.isFinite(quantite_demandee) || quantite_demandee <= 0) {
+    throw new Error("La quantité demandée doit être supérieure à zéro.");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("demandes_approvisionnement")
+    .update({ quantite_demandee })
+    .eq("id", id)
+    .eq("chef_id", profile.id)
+    .eq("statut", "declenchee")
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    throw new Error(error?.message ?? "Modification impossible : la demande a déjà été traitée par le manager.");
+  }
+  chemin();
+}
+
+export async function supprimerDemande(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, [...ROLES_CHEF]);
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) throw new Error("Demande introuvable.");
+
+  const supabase = await createClient();
+  const { error, count } = await supabase
+    .from("demandes_approvisionnement")
+    .delete({ count: "exact" })
+    .eq("id", id)
+    .eq("chef_id", profile.id)
+    .eq("statut", "declenchee");
+
+  if (error || !count) {
+    throw new Error(error?.message ?? "Suppression impossible : la demande a déjà été traitée par le manager.");
+  }
+  chemin();
+}
+
 export async function receptionnerDemande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, [

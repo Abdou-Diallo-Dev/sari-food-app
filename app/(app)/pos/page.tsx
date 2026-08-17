@@ -17,12 +17,23 @@ export default async function PosPage() {
   }
 
   const supabase = await createClient();
-  const { data: produits } = await supabase
-    .from("produits")
-    .select("id, nom, prix, actif, categorie_id, categories_produits(nom, pole)")
-    .eq("restaurant_id", profile.restaurant_id)
-    .eq("actif", true)
-    .order("nom");
+  const [{ data: produits }, { data: productionJour }] = await Promise.all([
+    supabase
+      .from("produits")
+      .select("id, nom, prix, actif, categorie_id, categories_produits(nom, pole)")
+      .eq("restaurant_id", profile.restaurant_id)
+      .eq("actif", true)
+      .order("nom"),
+    supabase
+      .from("production_jour")
+      .select("produit_id, quantite_restante")
+      .eq("restaurant_id", profile.restaurant_id)
+      .eq("jour", new Date().toISOString().slice(0, 10)),
+  ]);
+
+  const produitsEnRupture = new Set(
+    (productionJour ?? []).filter((p) => Number(p.quantite_restante) === 0).map((p) => p.produit_id),
+  );
 
   const produitsPos: ProduitPos[] = (produits ?? []).map((p) => ({
     id: p.id,
@@ -33,6 +44,7 @@ export default async function PosPage() {
       | "patisserie"
       | "boulangerie"
       | "fastfood",
+    enRupture: produitsEnRupture.has(p.id),
   }));
 
   const debutJournee = new Date();

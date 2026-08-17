@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { Profile } from "@/lib/auth";
 import { signOut } from "@/lib/auth-actions";
 import { NotificationBell, type NotificationItem } from "@/components/NotificationBell";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { IconHome, IconLogOut, IconMenu, IconClose, IconArrowLeft } from "@/components/icons";
 import { navItemsPour } from "@/lib/nav";
 
@@ -42,20 +43,23 @@ export function AppShell({
 
   return (
     <div className="min-h-screen lg:flex">
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
-        <div className="flex items-center gap-2.5">
-          <Image src="/sari-logo.png" alt="Sari Food" width={100} height={44} className="h-7 w-auto" />
+      <header className="sticky top-0 z-30 flex flex-col gap-2.5 border-b border-line bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Image src="/sari-logo.png" alt="Sari Food" width={100} height={44} className="h-7 w-auto" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <NotificationBell notifications={notifications} />
+            <button
+              onClick={() => setMenuOuvert((v) => !v)}
+              aria-label="Menu"
+              className="rounded-[9px] border border-line p-2 text-ink-soft"
+            >
+              {menuOuvert ? <IconClose className="h-5 w-5" /> : <IconMenu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <NotificationBell notifications={notifications} />
-          <button
-            onClick={() => setMenuOuvert((v) => !v)}
-            aria-label="Menu"
-            className="rounded-[9px] border border-line p-2 text-ink-soft"
-          >
-            {menuOuvert ? <IconClose className="h-5 w-5" /> : <IconMenu className="h-5 w-5" />}
-          </button>
-        </div>
+        <GlobalSearch role={profile.role} />
       </header>
 
       <aside
@@ -74,6 +78,10 @@ export function AppShell({
           </p>
           <p className="font-display font-extrabold text-ink">{profile.nom}</p>
           {restaurantNom && <p className="text-xs text-ink-soft opacity-70">{restaurantNom}</p>}
+        </div>
+
+        <div className="mb-4">
+          <GlobalSearch role={profile.role} />
         </div>
 
         <nav className="flex flex-1 flex-col gap-1">

@@ -10,6 +10,7 @@ export type ProduitPos = {
   prix: number;
   categorie: string;
   pole: "patisserie" | "boulangerie" | "fastfood";
+  enRupture: boolean;
 };
 
 const POLES = [
@@ -45,6 +46,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
 
   function ajouter(p: ProduitPos) {
+    if (p.enRupture) return;
     setMessage(null);
     setPanier((prev) => {
       const existant = prev[p.id];
@@ -110,12 +112,21 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                         <button
                           key={p.id}
                           onClick={() => ajouter(p)}
-                          className="rounded-[11px] border border-line bg-paper px-3 py-2.5 text-left transition hover:border-orange"
+                          disabled={p.enRupture}
+                          className={`rounded-[11px] border px-3 py-2.5 text-left transition ${
+                            p.enRupture
+                              ? "cursor-not-allowed border-line bg-line/20 opacity-60"
+                              : "border-line bg-paper hover:border-orange"
+                          }`}
                         >
                           <div className="text-sm font-bold text-ink">{p.nom}</div>
-                          <div className="text-xs font-bold text-orange">
-                            {p.prix.toLocaleString("fr-FR")} F
-                          </div>
+                          {p.enRupture ? (
+                            <div className="text-xs font-bold text-red-600">Rupture</div>
+                          ) : (
+                            <div className="text-xs font-bold text-orange">
+                              {p.prix.toLocaleString("fr-FR")} F
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>

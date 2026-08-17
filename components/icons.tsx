@@ -185,6 +185,25 @@ export function IconClipboard({ className }: IconProps) {
   );
 }
 
+export function IconGauge({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 15.5a8 8 0 1 1 16 0" />
+      <path d="M12 15.5 15.5 10" />
+      <path d="M4 15.5h1M19 15.5h1M12 6.5v1" />
+    </svg>
+  );
+}
+
+export function IconSearch({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.3-4.3" />
+    </svg>
+  );
+}
+
 export function IconShield({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

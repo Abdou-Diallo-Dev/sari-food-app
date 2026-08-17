@@ -76,7 +76,11 @@ export async function createCommande(
   );
 
   if (lignesError) {
-    return { error: "Commande créée mais erreur sur les articles" };
+    return {
+      error: lignesError.message.includes("Rupture")
+        ? lignesError.message
+        : "Commande créée mais erreur sur les articles",
+    };
   }
 
   const encaissement = await encaisserCommandeInterne(supabase, {

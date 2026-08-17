@@ -5,6 +5,8 @@ import {
   rejeterDemande,
   decaisserDemande,
   receptionnerDemande,
+  modifierDemande,
+  supprimerDemande,
 } from "./actions";
 import { IconAlert } from "@/components/icons";
 
@@ -202,7 +204,9 @@ export default async function ApprovisionnementPage() {
 
       {peutAvoirSesDemandes && (
         <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="mb-3 font-bold text-ink">Mes demandes</h2>
+          <h2 className="mb-3 font-bold text-ink">
+            Mes demandes {mesDemandes.length > 0 && `(${mesDemandes.length})`}
+          </h2>
           {mesDemandes.length === 0 ? (
             <p className="text-sm text-ink-soft opacity-70">
               Aucune demande envoyée depuis la page Stock.
@@ -224,6 +228,36 @@ export default async function ApprovisionnementPage() {
                   </div>
                   {d.statut === "rejetee" && d.motif_rejet && (
                     <p className="text-xs text-red-600">Motif : {d.motif_rejet}</p>
+                  )}
+                  {isChef && d.statut === "declenchee" && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-line pt-1.5">
+                      <form action={modifierDemande} className="flex items-center gap-1.5">
+                        <input type="hidden" name="id" value={d.id} />
+                        <input
+                          type="number"
+                          name="quantite_demandee"
+                          defaultValue={Number(d.quantite_demandee)}
+                          min={0.001}
+                          step="0.001"
+                          className="w-28 rounded-[7px] border border-line bg-surface px-2 py-1 text-xs text-ink"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-[7px] border border-orange px-2.5 py-1 text-xs font-bold text-orange hover:bg-orange hover:text-white"
+                        >
+                          Modifier
+                        </button>
+                      </form>
+                      <form action={supprimerDemande}>
+                        <input type="hidden" name="id" value={d.id} />
+                        <button
+                          type="submit"
+                          className="rounded-[7px] border border-red-300 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+                        >
+                          Supprimer
+                        </button>
+                      </form>
+                    </div>
                   )}
                   {d.statut === "decaissee" && (
                     <form action={receptionnerDemande} className="mt-1.5">
