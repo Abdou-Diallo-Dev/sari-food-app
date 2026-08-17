@@ -71,7 +71,7 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
   const admin = createAdminClient();
 
   const { data: created, error: authError } = await admin.auth.admin.createUser({
-    email: `${identifiant}@sari.local`,
+    email: `${identifiant}@sari.com`,
     password: motDePasse,
     email_confirm: true,
   });
@@ -149,6 +149,51 @@ export async function toggleActifUtilisateur(formData: FormData): Promise<void> 
   }
 
   revalidatePath("/admin/utilisateurs");
+}
+
+// Action ponctuelle : les comptes créés avant le passage de @sari.local à
+// @sari.com gardent leur ancien email d'authentification tant qu'on ne le
+// met pas à jour explicitement (createUser ne les touche pas rétroactivement).
+// Parcourt TOUTE la table utilisateurs (paginée, sans plafond arbitraire) et
+// réaligne l'email Auth de chacun sur `${identifiant}@sari.com`.
+export async function migrerEmailsSariCom(): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin"]);
+
+  const admin = createAdminClient();
+
+  const TAILLE_PAGE = 1000;
+  let depart = 0;
+  const utilisateurs: { id: string; identifiant: string }[] = [];
+  for (;;) {
+    const { data, error } = await admin
+      .from("utilisateurs")
+      .select("id, identifiant")
+      .range(depart, depart + TAILLE_PAGE - 1);
+
+    if (error) {
+      throw new Error("Impossible de lister les utilisateurs : " + error.message);
+    }
+    if (!data || data.length === 0) break;
+    utilisateurs.push(...data);
+    if (data.length < TAILLE_PAGE) break;
+    depart += TAILLE_PAGE;
+  }
+
+  const erreurs: string[] = [];
+  for (const u of utilisateurs) {
+    const { error } = await admin.auth.admin.updateUserById(u.id, {
+      email: `${u.identifiant}@sari.com`,
+      email_confirm: true,
+    });
+    if (error) erreurs.push(`${u.identifiant} : ${error.message}`);
+  }
+
+  revalidatePath("/admin/utilisateurs");
+
+  if (erreurs.length > 0) {
+    throw new Error("Migration partielle, erreurs : " + erreurs.join(" · "));
+  }
 }
 
 export async function reinitialiserMotDePasse(formData: FormData): Promise<void> {

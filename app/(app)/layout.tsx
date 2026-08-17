@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
+import { PushSubscribe } from "@/components/PushSubscribe";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
@@ -24,8 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .limit(20);
 
   return (
-    <AppShell profile={profile} restaurantNom={restaurantNom} notifications={notifications ?? []}>
-      {children}
-    </AppShell>
+    <>
+      <PushSubscribe utilisateurId={profile.id} />
+      <AppShell profile={profile} restaurantNom={restaurantNom} notifications={notifications ?? []}>
+        {children}
+      </AppShell>
+    </>
   );
 }

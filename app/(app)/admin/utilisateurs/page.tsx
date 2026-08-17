@@ -6,6 +6,7 @@ import {
   updateUtilisateur,
   toggleActifUtilisateur,
   reinitialiserMotDePasse,
+  migrerEmailsSariCom,
 } from "./actions";
 
 const ROLES = [
@@ -72,7 +73,18 @@ export default async function UtilisateursPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8">
-      <h1 className="font-display text-2xl font-extrabold text-ink">Utilisateurs</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-extrabold text-ink">Utilisateurs</h1>
+        <form action={migrerEmailsSariCom}>
+          <button
+            type="submit"
+            className="rounded-[9px] border border-line bg-surface px-3 py-1.5 text-xs font-bold text-ink-soft transition hover:border-orange hover:text-orange"
+            title="Réaligne l'email de connexion de tous les comptes existants sur @sari.com"
+          >
+            Migrer les comptes vers @sari.com
+          </button>
+        </form>
+      </div>
 
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-4 font-display text-lg font-extrabold text-orange">Restaurants</h2>

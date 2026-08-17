@@ -18,7 +18,7 @@ export default function LoginPage() {
     const supabase = createClient();
     // les comptes internes n'ont pas d'email : on le simule à partir de l'identifiant
     const { error } = await supabase.auth.signInWithPassword({
-      email: `${identifiant}@sari.local`,
+      email: `${identifiant.trim().toLowerCase()}@sari.com`,
       password,
     });
 

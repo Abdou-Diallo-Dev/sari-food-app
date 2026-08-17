@@ -54,3 +54,41 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Notifications push réelles (approvisionnement, commandes cuisine par pôle,
+// commandes en ligne...) envoyées par /api/push, relayé par le trigger SQL
+// trg_relayer_push_notification (0022_push_notifications.sql) à chaque ligne
+// insérée dans `notifications`.
+self.addEventListener("push", (event) => {
+  let data = { titre: "Sari Food", message: "Nouvelle notification", lien: "/" };
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch {
+      data.message = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.titre || "Sari Food", {
+      body: data.message,
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      data: { lien: data.lien || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const lien = event.notification.data?.lien || "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
+      for (const client of clientsList) {
+        if (client.url.includes(lien) && "focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(lien);
+    }),
+  );
+});
