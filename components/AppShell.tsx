@@ -63,7 +63,7 @@ export function AppShell({
       </header>
 
       <aside
-        className={`z-20 flex w-full flex-col border-r border-line bg-surface px-4 py-6 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 ${
+        className={`z-20 flex w-full flex-col overflow-y-auto border-r border-line bg-surface px-4 py-6 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 ${
           menuOuvert ? "block" : "hidden"
         } lg:block`}
       >
