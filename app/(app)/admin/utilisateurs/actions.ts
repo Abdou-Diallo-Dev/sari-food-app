@@ -164,11 +164,11 @@ export async function migrerEmailsSariCom(): Promise<void> {
 
   const TAILLE_PAGE = 1000;
   let depart = 0;
-  const utilisateurs: { id: string; identifiant: string }[] = [];
+  const utilisateurs: { id: string; nom: string; identifiant: string | null }[] = [];
   for (;;) {
     const { data, error } = await admin
       .from("utilisateurs")
-      .select("id, identifiant")
+      .select("id, nom, identifiant")
       .range(depart, depart + TAILLE_PAGE - 1);
 
     if (error) {
@@ -181,7 +181,11 @@ export async function migrerEmailsSariCom(): Promise<void> {
   }
 
   const erreurs: string[] = [];
-  for (const u of utilisateurs) {
+  // Sécurité : un identifiant vide/absent produirait un email invalide
+  // (ex. "null@sari.com") qui casserait le login de ce compte au lieu de
+  // le réparer. On l'ignore et on le signale plutôt que de l'écraser.
+  const sansIdentifiant = utilisateurs.filter((u) => !u.identifiant);
+  for (const u of utilisateurs.filter((u) => u.identifiant)) {
     const { error } = await admin.auth.admin.updateUserById(u.id, {
       email: `${u.identifiant}@sari.com`,
       email_confirm: true,
@@ -190,6 +194,13 @@ export async function migrerEmailsSariCom(): Promise<void> {
   }
 
   revalidatePath("/admin/utilisateurs");
+
+  if (sansIdentifiant.length > 0) {
+    erreurs.push(
+      "Comptes sans identifiant, ignorés (à corriger manuellement) : " +
+        sansIdentifiant.map((u) => u.nom).join(", "),
+    );
+  }
 
   if (erreurs.length > 0) {
     throw new Error("Migration partielle, erreurs : " + erreurs.join(" · "));
