@@ -54,9 +54,15 @@ type Utilisateur = {
   actif: boolean;
 };
 
-export default async function UtilisateursPage() {
+export default async function UtilisateursPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ migration?: string; count?: string; details?: string }>;
+}) {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);
+
+  const { migration, count, details } = await searchParams;
 
   const supabase = await createClient();
   const [{ data: utilisateurs }, { data: restaurants }] = await Promise.all([
@@ -85,6 +91,17 @@ export default async function UtilisateursPage() {
           </button>
         </form>
       </div>
+
+      {migration === "ok" && (
+        <p className="rounded-[10px] border border-green/30 bg-green/10 px-3.5 py-2.5 text-sm font-bold text-green">
+          Migration réussie : {count} compte(s) basculé(s) vers @sari.com.
+        </p>
+      )}
+      {migration === "erreur" && (
+        <p className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-bold text-red-600">
+          Migration partielle — {details}
+        </p>
+      )}
 
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-4 font-display text-lg font-extrabold text-orange">Restaurants</h2>

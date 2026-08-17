@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile, requireRole } from "@/lib/auth";
@@ -203,8 +204,11 @@ export async function migrerEmailsSariCom(): Promise<void> {
   }
 
   if (erreurs.length > 0) {
-    throw new Error("Migration partielle, erreurs : " + erreurs.join(" · "));
+    redirect(`/admin/utilisateurs?migration=erreur&details=${encodeURIComponent(erreurs.join(" · "))}`);
   }
+
+  const migres = utilisateurs.length - sansIdentifiant.length;
+  redirect(`/admin/utilisateurs?migration=ok&count=${migres}`);
 }
 
 export async function reinitialiserMotDePasse(formData: FormData): Promise<void> {
