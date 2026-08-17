@@ -16,11 +16,23 @@ export default function LoginPage() {
     setError(null);
 
     const supabase = createClient();
-    // les comptes internes n'ont pas d'email : on le simule à partir de l'identifiant
-    const { error } = await supabase.auth.signInWithPassword({
-      email: `${identifiant.trim().toLowerCase()}@sari.com`,
+    const idNormalise = identifiant.trim().toLowerCase();
+
+    // les comptes internes n'ont pas d'email : on le simule à partir de
+    // l'identifiant. Les comptes migrés sont en @sari.com ; ceux pas
+    // encore migrés (bouton "Migrer les comptes" sur /admin/utilisateurs)
+    // sont encore en @sari.local -> on retente avec l'ancien domaine avant
+    // d'abandonner, pour ne jamais bloquer un compte non migré.
+    let { error } = await supabase.auth.signInWithPassword({
+      email: `${idNormalise}@sari.com`,
       password,
     });
+    if (error) {
+      ({ error } = await supabase.auth.signInWithPassword({
+        email: `${idNormalise}@sari.local`,
+        password,
+      }));
+    }
 
     setLoading(false);
     if (error) {
