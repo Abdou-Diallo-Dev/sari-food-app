@@ -3,6 +3,7 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { IconWallet } from "@/components/icons";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
+import { RemiseAVerifier } from "./remise-a-verifier";
 
 const LABELS_MOYEN: Record<string, string> = {
   especes: "Espèces",
@@ -40,6 +41,10 @@ type Session = {
   total_compte_especes: number | null;
   ecart: number | null;
   ecart_especes: number | null;
+  total_compte_wave: number | null;
+  ecart_wave: number | null;
+  total_compte_orange_money: number | null;
+  ecart_orange_money: number | null;
   statut: "ouverte" | "cloturee";
   ouverte_at: string;
   cloturee_at: string | null;
@@ -83,12 +88,19 @@ export default async function AdminCaissePage({
   }
   const { data: restaurants } = await restaurantsQuery;
 
+  const { data: remisesEnAttente } = await supabase
+    .from("remises_caisse")
+    .select("id, montant_remis, restaurant_id, utilisateurs(nom)")
+    .eq("statut", "en_attente")
+    .in("restaurant_id", (restaurants ?? []).map((r) => r.id))
+    .order("created_at", { ascending: true });
+
   const parRestaurant = await Promise.all(
     (restaurants ?? []).map(async (r) => {
       const { data: sessions } = await supabase
         .from("sessions_caisse")
         .select(
-          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
+          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
         )
         .eq("restaurant_id", r.id)
         .gte("ouverte_at", debutJourneeIso)
@@ -142,6 +154,24 @@ export default async function AdminCaissePage({
           </Link>
         )}
       </div>
+
+      {(remisesEnAttente ?? []).length > 0 && (
+        <section className="rounded-card border border-line bg-surface p-5">
+          <h2 className="mb-3 font-display text-lg font-extrabold text-orange">
+            Remises en attente de vérification
+          </h2>
+          <div className="flex flex-col gap-2">
+            {(remisesEnAttente ?? []).map((r) => (
+              <RemiseAVerifier
+                key={r.id}
+                remiseId={r.id}
+                caissiereNom={(r.utilisateurs as unknown as { nom: string } | null)?.nom ?? "—"}
+                montantRemis={Number(r.montant_remis)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {parRestaurant.length === 0 ? (
         <p className="text-ink-soft opacity-70">Aucun restaurant à afficher.</p>
@@ -236,6 +266,18 @@ export default async function AdminCaissePage({
                                   : Number(s.fond_initial_orange_money);
                             const { encaisse, depense } = totauxParMoyen(s.transactions, m.value);
                             const theorique = fondInitial + encaisse - depense;
+                            const compte =
+                              m.value === "especes"
+                                ? s.total_compte_especes
+                                : m.value === "wave"
+                                  ? s.total_compte_wave
+                                  : s.total_compte_orange_money;
+                            const ecartMoyen =
+                              m.value === "especes"
+                                ? s.ecart_especes
+                                : m.value === "wave"
+                                  ? s.ecart_wave
+                                  : s.ecart_orange_money;
                             return (
                               <div key={m.value} className="rounded-[10px] border border-line bg-surface p-2.5 text-sm">
                                 <div className="mb-1 font-bold text-ink">{m.label}</div>
@@ -255,13 +297,13 @@ export default async function AdminCaissePage({
                                   <span>Théorique</span>
                                   <span>{theorique.toLocaleString("fr-FR")} F</span>
                                 </div>
-                                {m.value === "especes" && s.statut === "cloturee" && (
+                                {s.statut === "cloturee" && compte !== null && (
                                   <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
                                     <span className="text-ink-soft">Compté / Écart</span>
-                                    <span className={Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"}>
-                                      {Number(s.total_compte_especes).toLocaleString("fr-FR")} F (
-                                      {Number(s.ecart_especes) >= 0 ? "+" : ""}
-                                      {Number(s.ecart_especes).toLocaleString("fr-FR")} F)
+                                    <span className={Number(ecartMoyen) === 0 ? "text-ink" : "text-red-600"}>
+                                      {Number(compte).toLocaleString("fr-FR")} F (
+                                      {Number(ecartMoyen) >= 0 ? "+" : ""}
+                                      {Number(ecartMoyen).toLocaleString("fr-FR")} F)
                                     </span>
                                   </div>
                                 )}

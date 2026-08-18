@@ -34,6 +34,10 @@ type SessionPrecedente = {
   total_compte: number | null;
   total_compte_especes: number | null;
   ecart_especes: number | null;
+  total_compte_wave: number | null;
+  ecart_wave: number | null;
+  total_compte_orange_money: number | null;
+  ecart_orange_money: number | null;
   ouverte_at: string;
   cloturee_at: string | null;
 };
@@ -112,6 +116,18 @@ function SectionSessionsPrecedentes({
                           : Number(s.fond_initial_orange_money);
                     const { encaisse, depense } = totauxParMoyen(txns, m.value);
                     const theorique = fondInitial + encaisse - depense;
+                    const compte =
+                      m.value === "especes"
+                        ? s.total_compte_especes
+                        : m.value === "wave"
+                          ? s.total_compte_wave
+                          : s.total_compte_orange_money;
+                    const ecart =
+                      m.value === "especes"
+                        ? s.ecart_especes
+                        : m.value === "wave"
+                          ? s.ecart_wave
+                          : s.ecart_orange_money;
                     return (
                       <div
                         key={m.value}
@@ -134,11 +150,13 @@ function SectionSessionsPrecedentes({
                           <span>Théorique</span>
                           <span>{theorique.toLocaleString("fr-FR")} F</span>
                         </div>
-                        {m.value === "especes" && s.total_compte_especes !== null && (
+                        {compte !== null && (
                           <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
                             <span className="text-ink-soft">Compté</span>
-                            <span className="text-ink">
-                              {Number(s.total_compte_especes).toLocaleString("fr-FR")} F
+                            <span className={Number(ecart) === 0 ? "text-ink" : "text-red-600"}>
+                              {Number(compte).toLocaleString("fr-FR")} F
+                              {Number(ecart) !== 0 &&
+                                ` (${Number(ecart) >= 0 ? "+" : ""}${Number(ecart).toLocaleString("fr-FR")})`}
                             </span>
                           </div>
                         )}
@@ -202,7 +220,7 @@ export default async function CaissePage() {
     supabase
       .from("sessions_caisse")
       .select(
-        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, ouverte_at, cloturee_at",
+        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, ouverte_at, cloturee_at",
       )
       .eq("caissiere_id", profile.id)
       .eq("statut", "cloturee")
@@ -228,6 +246,16 @@ export default async function CaissePage() {
   }
 
   if (!session) {
+    const { data: remiseDisponible } = await supabase
+      .from("remises_caisse")
+      .select("id, montant_remis, fond_nouvelle_session")
+      .eq("restaurant_id", profile.restaurant_id!)
+      .eq("statut", "verifiee")
+      .is("session_suivante_id", null)
+      .order("verifiee_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
@@ -250,15 +278,28 @@ export default async function CaissePage() {
             Solde initial par caisse
           </p>
           <div className="grid grid-cols-3 gap-2">
-            <input
-              type="number"
-              name="fond_initial_especes"
-              defaultValue={0}
-              min={0}
-              step={1}
-              placeholder="Espèces"
-              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-            />
+            {remiseDisponible ? (
+              <div
+                className="rounded-[9px] border border-green/40 bg-green/5 px-2.5 py-1.5 text-sm text-ink"
+                title="Fonds transmis par le manager à la clôture précédente"
+              >
+                Espèces
+                <div className="font-bold text-green">
+                  {Number(remiseDisponible.fond_nouvelle_session).toLocaleString("fr-FR")} F
+                </div>
+                <input type="hidden" name="remise_id" value={remiseDisponible.id} />
+              </div>
+            ) : (
+              <input
+                type="number"
+                name="fond_initial_especes"
+                defaultValue={0}
+                min={0}
+                step={1}
+                placeholder="Espèces"
+                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
+            )}
             <input
               type="number"
               name="fond_initial_wave"
@@ -278,6 +319,12 @@ export default async function CaissePage() {
               className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
             />
           </div>
+          {remiseDisponible && (
+            <p className="text-xs text-ink-soft opacity-70">
+              Le fonds espèces vient du transfert vérifié par le manager à la clôture précédente —
+              non modifiable ici.
+            </p>
+          )}
 
           <button
             type="submit"
@@ -504,23 +551,43 @@ export default async function CaissePage() {
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-3 font-bold text-ink">Clôturer la caisse</h2>
         <p className="mb-2 text-xs text-ink-soft opacity-70">
-          Seules les espèces se comptent physiquement. Wave et Orange Money sont retenus au
-          théorique calculé à partir des encaissements enregistrés.
+          Déclarez le montant détenu pour chaque moyen de paiement — le manager vérifiera l'espèces
+          et fixera le fonds de la prochaine session.
         </p>
-        <form action={cloturerSession} className="flex flex-wrap items-center gap-2">
+        <form action={cloturerSession} className="flex flex-col gap-2">
           <input type="hidden" name="session_id" value={session.id} />
-          <input
-            type="number"
-            name="total_compte_especes"
-            required
-            min={0}
-            step={1}
-            placeholder="Montant compté en espèces (F)"
-            className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              type="number"
+              name="total_compte_especes"
+              required
+              min={0}
+              step={1}
+              placeholder="Espèces comptées (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="total_compte_wave"
+              required
+              min={0}
+              step={1}
+              placeholder="Wave détenu (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="total_compte_orange_money"
+              required
+              min={0}
+              step={1}
+              placeholder="Orange Money détenu (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+          </div>
           <button
             type="submit"
-            className="rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
+            className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
           >
             Clôturer
           </button>
