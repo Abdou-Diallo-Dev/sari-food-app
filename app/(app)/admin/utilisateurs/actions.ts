@@ -12,6 +12,13 @@ function messageErreur(erreur: unknown): string {
   return "Une erreur inconnue est survenue.";
 }
 
+// Toute erreur de validation/métier dans ce fichier redirige ici plutôt que
+// de laisser l'exception remonter jusqu'à l'error boundary générique de
+// Next.js (écran "Une erreur est survenue" sans détail exploitable).
+function redirigerErreur(erreur: unknown): never {
+  redirect(`/admin/utilisateurs?erreur=${encodeURIComponent(messageErreur(erreur))}`);
+}
+
 export async function createRestaurant(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);
@@ -19,16 +26,20 @@ export async function createRestaurant(formData: FormData): Promise<void> {
   const nom = String(formData.get("nom") ?? "").trim();
   const adresse = String(formData.get("adresse") ?? "").trim();
 
-  if (!nom) throw new Error("Le nom du restaurant est obligatoire.");
+  try {
+    if (!nom) throw new Error("Le nom du restaurant est obligatoire.");
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("restaurants").insert({
-    nom,
-    adresse: adresse || null,
-  });
+    const supabase = await createClient();
+    const { error } = await supabase.from("restaurants").insert({
+      nom,
+      adresse: adresse || null,
+    });
 
-  if (error) {
-    throw new Error("Impossible de créer le restaurant : " + error.message);
+    if (error) {
+      throw new Error("Impossible de créer le restaurant : " + error.message);
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
   }
 
   revalidatePath("/admin/utilisateurs");
@@ -49,47 +60,51 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
   const restaurantIdRaw = String(formData.get("restaurant_id") ?? "");
   const restaurantId = restaurantIdRaw || null;
 
-  if (!nom || !identifiant || !motDePasse || !role) {
-    throw new Error("Nom, identifiant, mot de passe et rôle sont obligatoires.");
-  }
-  if (motDePasse.length < 8) {
-    throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
-  }
-  if (!/^[a-z0-9._-]+$/.test(identifiant)) {
-    throw new Error(
-      "L'identifiant ne doit contenir que des lettres, chiffres, points, tirets ou underscores (pas d'espaces ni d'accents). Ex : chef.cuisine",
-    );
-  }
+  try {
+    if (!nom || !identifiant || !motDePasse || !role) {
+      throw new Error("Nom, identifiant, mot de passe et rôle sont obligatoires.");
+    }
+    if (motDePasse.length < 8) {
+      throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+    }
+    if (!/^[a-z0-9._-]+$/.test(identifiant)) {
+      throw new Error(
+        "L'identifiant ne doit contenir que des lettres, chiffres, points, tirets ou underscores (pas d'espaces, d'accents ni de @ — l'adresse @sari.com est ajoutée automatiquement). Ex : papesarr",
+      );
+    }
 
-  const admin = createAdminClient();
+    const admin = createAdminClient();
 
-  const { data: created, error: authError } = await admin.auth.admin.createUser({
-    email: `${identifiant}@sari.com`,
-    password: motDePasse,
-    email_confirm: true,
-  });
+    const { data: created, error: authError } = await admin.auth.admin.createUser({
+      email: `${identifiant}@sari.com`,
+      password: motDePasse,
+      email_confirm: true,
+    });
 
-  if (authError || !created.user) {
-    throw new Error(
-      authError?.message.includes("already been registered")
-        ? "Cet identifiant est déjà utilisé."
-        : "Impossible de créer le compte : " + (authError?.message ?? "erreur inconnue"),
-    );
-  }
+    if (authError || !created.user) {
+      throw new Error(
+        authError?.message.includes("already been registered")
+          ? "Cet identifiant est déjà utilisé."
+          : "Impossible de créer le compte : " + (authError?.message ?? "erreur inconnue"),
+      );
+    }
 
-  const { error: insertError } = await admin.from("utilisateurs").insert({
-    id: created.user.id,
-    nom,
-    identifiant,
-    role,
-    pole,
-    restaurant_id: restaurantId,
-    actif: true,
-  });
+    const { error: insertError } = await admin.from("utilisateurs").insert({
+      id: created.user.id,
+      nom,
+      identifiant,
+      role,
+      pole,
+      restaurant_id: restaurantId,
+      actif: true,
+    });
 
-  if (insertError) {
-    await admin.auth.admin.deleteUser(created.user.id);
-    throw new Error("Impossible d'enregistrer l'utilisateur : " + insertError.message);
+    if (insertError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      throw new Error("Impossible d'enregistrer l'utilisateur : " + insertError.message);
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
   }
 
   revalidatePath("/admin/utilisateurs");
@@ -107,18 +122,22 @@ export async function updateUtilisateur(formData: FormData): Promise<void> {
   const restaurantIdRaw = String(formData.get("restaurant_id") ?? "");
   const restaurantId = restaurantIdRaw || null;
 
-  if (!id || !nom || !role) {
-    throw new Error("Données invalides.");
-  }
+  try {
+    if (!id || !nom || !role) {
+      throw new Error("Données invalides.");
+    }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("utilisateurs")
-    .update({ nom, role, pole, restaurant_id: restaurantId })
-    .eq("id", id);
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("utilisateurs")
+      .update({ nom, role, pole, restaurant_id: restaurantId })
+      .eq("id", id);
 
-  if (error) {
-    throw new Error("Impossible de mettre à jour l'utilisateur : " + error.message);
+    if (error) {
+      throw new Error("Impossible de mettre à jour l'utilisateur : " + error.message);
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
   }
 
   revalidatePath("/admin/utilisateurs");
@@ -131,14 +150,18 @@ export async function toggleActifUtilisateur(formData: FormData): Promise<void> 
   const id = String(formData.get("id") ?? "");
   const actif = formData.get("actif") === "true";
 
-  if (!id) throw new Error("Utilisateur introuvable.");
-  if (id === profile.id) throw new Error("Vous ne pouvez pas désactiver votre propre compte.");
+  try {
+    if (!id) throw new Error("Utilisateur introuvable.");
+    if (id === profile.id) throw new Error("Vous ne pouvez pas désactiver votre propre compte.");
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("utilisateurs").update({ actif: !actif }).eq("id", id);
+    const supabase = await createClient();
+    const { error } = await supabase.from("utilisateurs").update({ actif: !actif }).eq("id", id);
 
-  if (error) {
-    throw new Error("Impossible de changer le statut : " + error.message);
+    if (error) {
+      throw new Error("Impossible de changer le statut : " + error.message);
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
   }
 
   revalidatePath("/admin/utilisateurs");
@@ -210,15 +233,19 @@ export async function reinitialiserMotDePasse(formData: FormData): Promise<void>
   const id = String(formData.get("id") ?? "");
   const motDePasse = String(formData.get("mot_de_passe") ?? "");
 
-  if (!id || motDePasse.length < 8) {
-    throw new Error("Le nouveau mot de passe doit contenir au moins 8 caractères.");
-  }
+  try {
+    if (!id || motDePasse.length < 8) {
+      throw new Error("Le nouveau mot de passe doit contenir au moins 8 caractères.");
+    }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(id, { password: motDePasse });
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(id, { password: motDePasse });
 
-  if (error) {
-    throw new Error(messageErreur(error));
+    if (error) {
+      throw new Error(messageErreur(error));
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
   }
 
   revalidatePath("/admin/utilisateurs");

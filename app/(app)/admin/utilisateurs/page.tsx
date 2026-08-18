@@ -24,12 +24,12 @@ type Utilisateur = {
 export default async function UtilisateursPage({
   searchParams,
 }: {
-  searchParams: Promise<{ migration?: string; count?: string; details?: string }>;
+  searchParams: Promise<{ migration?: string; count?: string; details?: string; erreur?: string }>;
 }) {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);
 
-  const { migration, count, details } = await searchParams;
+  const { migration, count, details, erreur } = await searchParams;
 
   const supabase = await createClient();
   const [{ data: utilisateurs }, { data: restaurants }] = await Promise.all([
@@ -59,6 +59,11 @@ export default async function UtilisateursPage({
         </form>
       </div>
 
+      {erreur && (
+        <p className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-bold text-red-600">
+          {erreur}
+        </p>
+      )}
       {migration === "ok" && (
         <p className="rounded-[10px] border border-green/30 bg-green/10 px-3.5 py-2.5 text-sm font-bold text-green">
           Migration réussie : {count} compte(s) basculé(s) vers @sari.com.
