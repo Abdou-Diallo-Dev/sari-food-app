@@ -76,7 +76,7 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
     }
     if (!/^[a-z0-9._-]+@sari\.com$/.test(identifiant)) {
       throw new Error(
-        "L'identifiant doit être au format nom@sari.com (lettres, chiffres, points, tirets ou underscores avant @sari.com). Ex : papesarr@sari.com",
+        "L'identifiant doit être au format nom@sari.com (lettres, chiffres, points, tirets ou underscores avant @sari.com). Ex : votre@sari.com",
       );
     }
 

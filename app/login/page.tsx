@@ -87,7 +87,7 @@ export default function LoginPage() {
               required
               value={identifiant}
               onChange={(e) => setIdentifiant(e.target.value)}
-              placeholder="ex : papesarr@sari.com"
+              placeholder="ex : votre@sari.com"
               autoComplete="username"
               className="rounded-[11px] border border-line bg-paper px-3.5 py-2.5 text-[.98rem] font-medium normal-case tracking-normal text-ink placeholder:text-ink-soft placeholder:opacity-55 focus:border-orange focus:outline focus:outline-2 focus:outline-orange"
             />

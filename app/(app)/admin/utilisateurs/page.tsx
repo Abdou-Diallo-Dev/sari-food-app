@@ -132,7 +132,7 @@ export default async function UtilisateursPage({
             type="text"
             name="identifiant"
             required
-            placeholder="Identifiant (ex : papesarr@sari.com)"
+            placeholder="Identifiant (ex : votre@sari.com)"
             className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
           />
           <input
