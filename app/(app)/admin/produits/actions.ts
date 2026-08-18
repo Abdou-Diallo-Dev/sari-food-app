@@ -86,8 +86,17 @@ export async function createProduit(formData: FormData) {
   const prix = Number(formData.get("prix"));
   const categorie_id = String(formData.get("categorie_id") ?? "");
   const photo = formData.get("photo") as File | null;
+  const coutPointsBrut = String(formData.get("cout_points") ?? "").trim();
+  const cout_points = coutPointsBrut ? Number(coutPointsBrut) : null;
 
-  if (!nom || !categorie_id || !Number.isFinite(prix) || prix <= 0 || !profile.restaurant_id) {
+  if (
+    !nom ||
+    !categorie_id ||
+    !Number.isFinite(prix) ||
+    prix <= 0 ||
+    !profile.restaurant_id ||
+    (cout_points !== null && (!Number.isFinite(cout_points) || cout_points <= 0))
+  ) {
     return;
   }
 
@@ -96,7 +105,7 @@ export async function createProduit(formData: FormData) {
   const supabase = await createClient();
   await supabase
     .from("produits")
-    .insert({ nom, prix, categorie_id, image_url, restaurant_id: profile.restaurant_id });
+    .insert({ nom, prix, categorie_id, image_url, cout_points, restaurant_id: profile.restaurant_id });
 
   revalidatePath("/admin/produits");
 }
@@ -165,7 +174,18 @@ export async function updateProduit(formData: FormData) {
   const nom = String(formData.get("nom") ?? "").trim();
   const prix = Number(formData.get("prix"));
   const photo = formData.get("photo") as File | null;
-  if (!id || !nom || !Number.isFinite(prix) || prix <= 0) return;
+  const coutPointsBrut = String(formData.get("cout_points") ?? "").trim();
+  const cout_points = coutPointsBrut ? Number(coutPointsBrut) : null;
+
+  if (
+    !id ||
+    !nom ||
+    !Number.isFinite(prix) ||
+    prix <= 0 ||
+    (cout_points !== null && (!Number.isFinite(cout_points) || cout_points <= 0))
+  ) {
+    return;
+  }
 
   const supabase = await createClient();
   const { data: avant } = await supabase
@@ -181,7 +201,7 @@ export async function updateProduit(formData: FormData) {
 
   await supabase
     .from("produits")
-    .update({ nom, prix, ...(nouvelleImageUrl ? { image_url: nouvelleImageUrl } : {}) })
+    .update({ nom, prix, cout_points, ...(nouvelleImageUrl ? { image_url: nouvelleImageUrl } : {}) })
     .eq("id", id);
 
   if (nouvelleImageUrl && avant?.image_url) {

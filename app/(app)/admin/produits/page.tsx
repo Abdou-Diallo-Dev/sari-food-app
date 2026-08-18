@@ -25,6 +25,7 @@ type Produit = {
   actif: boolean;
   categorie_id: string;
   image_url: string | null;
+  cout_points: number | null;
 };
 
 type Categorie = {
@@ -47,7 +48,7 @@ export default async function ProduitsPage() {
       .order("nom"),
     supabase
       .from("produits")
-      .select("id, nom, prix, actif, categorie_id, image_url")
+      .select("id, nom, prix, actif, categorie_id, image_url, cout_points")
       .order("nom"),
   ]);
 
@@ -145,6 +146,11 @@ export default async function ProduitsPage() {
                         <span className="text-xs font-bold text-orange">
                           {p.prix.toLocaleString("fr-FR")} F
                         </span>
+                        {p.cout_points && (
+                          <span className="text-[.65rem] font-bold text-green">
+                            🎁 {p.cout_points} pts
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <form
@@ -166,6 +172,16 @@ export default async function ProduitsPage() {
                           min={1}
                           step={1}
                           className="w-full min-w-0 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 text-center text-sm font-bold text-orange hover:border-line focus:border-orange focus:bg-paper focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          name="cout_points"
+                          defaultValue={p.cout_points ?? ""}
+                          min={1}
+                          step={1}
+                          placeholder="Coût en points (optionnel)"
+                          title="Coût en points pour l'échanger gratuitement — laisser vide pour ne pas le rendre échangeable"
+                          className="w-full min-w-0 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 text-center text-xs text-green placeholder:text-ink-soft placeholder:opacity-60 hover:border-line focus:border-orange focus:bg-paper focus:outline-none"
                         />
                         <button
                           formAction={toggleProduitActif.bind(null, p.id, !p.actif)}
@@ -228,6 +244,14 @@ export default async function ProduitsPage() {
                         step={1}
                         placeholder="Prix"
                         className="w-full min-w-0 rounded-[8px] border border-line bg-paper px-2 py-1 text-center text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                      />
+                      <input
+                        type="number"
+                        name="cout_points"
+                        min={1}
+                        step={1}
+                        placeholder="Coût en points (optionnel)"
+                        className="w-full min-w-0 rounded-[8px] border border-line bg-paper px-2 py-1 text-center text-xs text-ink placeholder:text-ink-soft placeholder:opacity-60"
                       />
                       <button
                         type="submit"
