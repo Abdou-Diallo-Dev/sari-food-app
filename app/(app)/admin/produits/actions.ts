@@ -1,9 +1,44 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { journaliser } from "@/lib/audit";
+
+const BUCKET_PRODUITS = "produits";
+
+function cheminDepuisUrlPublique(url: string): string | null {
+  const marqueur = `/storage/v1/object/public/${BUCKET_PRODUITS}/`;
+  const index = url.indexOf(marqueur);
+  return index === -1 ? null : url.slice(index + marqueur.length);
+}
+
+async function televerserPhoto(photo: File, restaurantId: string): Promise<string | null> {
+  if (!photo || photo.size === 0) return null;
+
+  const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
+  const chemin = `${restaurantId}/${randomUUID()}.${extension}`;
+
+  const admin = createAdminClient();
+  const { error } = await admin.storage
+    .from(BUCKET_PRODUITS)
+    .upload(chemin, photo, { contentType: photo.type, upsert: false });
+
+  if (error) return null;
+
+  const { data } = admin.storage.from(BUCKET_PRODUITS).getPublicUrl(chemin);
+  return data.publicUrl;
+}
+
+async function supprimerPhoto(imageUrl: string | null | undefined) {
+  const chemin = imageUrl ? cheminDepuisUrlPublique(imageUrl) : null;
+  if (!chemin) return;
+
+  const admin = createAdminClient();
+  await admin.storage.from(BUCKET_PRODUITS).remove([chemin]);
+}
 
 export async function createCategorie(formData: FormData) {
   const profile = await requireProfile();
@@ -29,15 +64,18 @@ export async function createProduit(formData: FormData) {
   const nom = String(formData.get("nom") ?? "").trim();
   const prix = Number(formData.get("prix"));
   const categorie_id = String(formData.get("categorie_id") ?? "");
+  const photo = formData.get("photo") as File | null;
 
   if (!nom || !categorie_id || !Number.isFinite(prix) || prix <= 0 || !profile.restaurant_id) {
     return;
   }
 
+  const image_url = photo ? await televerserPhoto(photo, profile.restaurant_id) : null;
+
   const supabase = await createClient();
   await supabase
     .from("produits")
-    .insert({ nom, prix, categorie_id, restaurant_id: profile.restaurant_id });
+    .insert({ nom, prix, categorie_id, image_url, restaurant_id: profile.restaurant_id });
 
   revalidatePath("/admin/produits");
 }
@@ -105,16 +143,29 @@ export async function updateProduit(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const nom = String(formData.get("nom") ?? "").trim();
   const prix = Number(formData.get("prix"));
+  const photo = formData.get("photo") as File | null;
   if (!id || !nom || !Number.isFinite(prix) || prix <= 0) return;
 
   const supabase = await createClient();
   const { data: avant } = await supabase
     .from("produits")
-    .select("nom, prix, restaurant_id")
+    .select("nom, prix, image_url, restaurant_id")
     .eq("id", id)
     .single();
 
-  await supabase.from("produits").update({ nom, prix }).eq("id", id);
+  const nouvelleImageUrl =
+    photo && photo.size > 0 && avant?.restaurant_id
+      ? await televerserPhoto(photo, avant.restaurant_id)
+      : null;
+
+  await supabase
+    .from("produits")
+    .update({ nom, prix, ...(nouvelleImageUrl ? { image_url: nouvelleImageUrl } : {}) })
+    .eq("id", id);
+
+  if (nouvelleImageUrl && avant?.image_url) {
+    await supprimerPhoto(avant.image_url);
+  }
 
   if (avant) {
     await journaliser(supabase, {
@@ -141,7 +192,7 @@ export async function deleteProduit(formData: FormData) {
   const supabase = await createClient();
   const { data: avant } = await supabase
     .from("produits")
-    .select("nom, prix, restaurant_id")
+    .select("nom, prix, image_url, restaurant_id")
     .eq("id", id)
     .single();
 
@@ -152,6 +203,8 @@ export async function deleteProduit(formData: FormData) {
     // déjà utilisé dans des commandes passées : on le désactive plutôt que de casser l'historique
     await supabase.from("produits").update({ actif: false }).eq("id", id);
     action = "desactivation_produit";
+  } else if (avant?.image_url) {
+    await supprimerPhoto(avant.image_url);
   }
 
   if (avant) {
@@ -165,47 +218,6 @@ export async function deleteProduit(formData: FormData) {
       apres: null,
     });
   }
-
-  revalidatePath("/admin/produits");
-}
-
-export async function upsertRecetteIngredient(formData: FormData) {
-  const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager"]);
-
-  const produit_id = String(formData.get("produit_id") ?? "");
-  const ingredient_id = String(formData.get("ingredient_id") ?? "");
-  const quantite_utilisee = Number(formData.get("quantite_utilisee"));
-
-  if (!produit_id || !ingredient_id || !Number.isFinite(quantite_utilisee) || quantite_utilisee <= 0) {
-    return;
-  }
-
-  const supabase = await createClient();
-  await supabase
-    .from("recettes")
-    .upsert(
-      { produit_id, ingredient_id, quantite_utilisee },
-      { onConflict: "produit_id,ingredient_id" },
-    );
-
-  revalidatePath("/admin/produits");
-}
-
-export async function deleteRecetteIngredient(formData: FormData) {
-  const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager"]);
-
-  const produit_id = String(formData.get("produit_id") ?? "");
-  const ingredient_id = String(formData.get("ingredient_id") ?? "");
-  if (!produit_id || !ingredient_id) return;
-
-  const supabase = await createClient();
-  await supabase
-    .from("recettes")
-    .delete()
-    .eq("produit_id", produit_id)
-    .eq("ingredient_id", ingredient_id);
 
   revalidatePath("/admin/produits");
 }
