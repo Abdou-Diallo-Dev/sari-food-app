@@ -19,19 +19,20 @@ export default function LoginPage() {
     const idNormalise = identifiant.trim().toLowerCase();
 
     // les comptes internes n'ont pas d'email : on le simule à partir de
-    // l'identifiant. Les comptes migrés sont en @sari.com ; ceux pas
-    // encore migrés (bouton "Migrer les comptes" sur /admin/utilisateurs)
-    // sont encore en @sari.local -> on retente avec l'ancien domaine avant
-    // d'abandonner, pour ne jamais bloquer un compte non migré.
-    let { error } = await supabase.auth.signInWithPassword({
-      email: `${idNormalise}@sari.com`,
-      password,
-    });
-    if (error) {
-      ({ error } = await supabase.auth.signInWithPassword({
-        email: `${idNormalise}@sari.local`,
-        password,
-      }));
+    // l'identifiant. Les comptes récents ont un identifiant qui EST déjà
+    // l'email complet (papesarr@sari.com) -> utilisé tel quel. Les comptes
+    // plus anciens n'ont qu'un préfixe ("fatou.diop") : on tente d'abord
+    // @sari.com, puis @sari.local pour ceux pas encore migrés (bouton
+    // "Migrer les comptes" sur /admin/utilisateurs), pour ne jamais bloquer
+    // un compte non migré.
+    const candidats = idNormalise.includes("@")
+      ? [idNormalise]
+      : [`${idNormalise}@sari.com`, `${idNormalise}@sari.local`];
+
+    let error: { message: string } | null = null;
+    for (const email of candidats) {
+      ({ error } = await supabase.auth.signInWithPassword({ email, password }));
+      if (!error) break;
     }
 
     setLoading(false);
@@ -86,7 +87,7 @@ export default function LoginPage() {
               required
               value={identifiant}
               onChange={(e) => setIdentifiant(e.target.value)}
-              placeholder="ex : fatou.diop"
+              placeholder="ex : papesarr@sari.com"
               autoComplete="username"
               className="rounded-[11px] border border-line bg-paper px-3.5 py-2.5 text-[.98rem] font-medium normal-case tracking-normal text-ink placeholder:text-ink-soft placeholder:opacity-55 focus:border-orange focus:outline focus:outline-2 focus:outline-orange"
             />

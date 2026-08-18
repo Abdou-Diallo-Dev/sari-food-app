@@ -132,7 +132,7 @@ export default async function UtilisateursPage({
             type="text"
             name="identifiant"
             required
-            placeholder="Identifiant (ex : fatou.diop)"
+            placeholder="Identifiant (ex : papesarr@sari.com)"
             className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
           />
           <input
@@ -179,7 +179,9 @@ export default async function UtilisateursPage({
               <div>
                 <span className="font-bold text-ink">{u.nom}</span>
                 {u.identifiant && (
-                  <span className="ml-2 text-xs text-ink-soft opacity-70">@{u.identifiant}</span>
+                  <span className="ml-2 text-xs text-ink-soft opacity-70">
+                    {u.identifiant.includes("@") ? u.identifiant : `@${u.identifiant}`}
+                  </span>
                 )}
               </div>
               <div className="flex items-center gap-2">

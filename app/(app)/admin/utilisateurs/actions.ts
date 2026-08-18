@@ -12,6 +12,13 @@ function messageErreur(erreur: unknown): string {
   return "Une erreur inconnue est survenue.";
 }
 
+// Comptes créés avant ce format : identifiant = simple préfixe ("fatou.diop"),
+// email synthétisé en l'ajoutant "@sari.com". Comptes créés depuis ce format :
+// identifiant = déjà l'email complet ("papesarr@sari.com"), utilisé tel quel.
+function emailDepuisIdentifiant(identifiant: string): string {
+  return identifiant.includes("@") ? identifiant : `${identifiant}@sari.com`;
+}
+
 // Toute erreur de validation/métier dans ce fichier redirige ici plutôt que
 // de laisser l'exception remonter jusqu'à l'error boundary générique de
 // Next.js (écran "Une erreur est survenue" sans détail exploitable).
@@ -67,16 +74,16 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
     if (motDePasse.length < 8) {
       throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
     }
-    if (!/^[a-z0-9._-]+$/.test(identifiant)) {
+    if (!/^[a-z0-9._-]+@sari\.com$/.test(identifiant)) {
       throw new Error(
-        "L'identifiant ne doit contenir que des lettres, chiffres, points, tirets ou underscores (pas d'espaces, d'accents ni de @ — l'adresse @sari.com est ajoutée automatiquement). Ex : papesarr",
+        "L'identifiant doit être au format nom@sari.com (lettres, chiffres, points, tirets ou underscores avant @sari.com). Ex : papesarr@sari.com",
       );
     }
 
     const admin = createAdminClient();
 
     const { data: created, error: authError } = await admin.auth.admin.createUser({
-      email: `${identifiant}@sari.com`,
+      email: identifiant,
       password: motDePasse,
       email_confirm: true,
     });
@@ -203,7 +210,7 @@ export async function migrerEmailsSariCom(): Promise<void> {
   const sansIdentifiant = utilisateurs.filter((u) => !u.identifiant);
   for (const u of utilisateurs.filter((u) => u.identifiant)) {
     const { error } = await admin.auth.admin.updateUserById(u.id, {
-      email: `${u.identifiant}@sari.com`,
+      email: emailDepuisIdentifiant(u.identifiant as string),
       email_confirm: true,
     });
     if (error) erreurs.push(`${u.identifiant} : ${error.message}`);
