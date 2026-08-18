@@ -6,7 +6,7 @@ import { BoutonAnnulation } from "@/components/BoutonAnnulation";
 import { BarChartCA } from "@/components/BarChartCA";
 import { STATUTS_ORDRE, LABELS_STATUT, LABELS_CANAL } from "@/lib/commandes";
 import { IconChart } from "@/components/icons";
-import { ajouterJours, debutJour, variation } from "@/lib/dashboard";
+import { debutJour, ajouterJours } from "@/lib/dashboard";
 import { PERIODES, resoudrePeriode, type TypePeriode } from "@/lib/rapports";
 
 type CommandeJour = {
@@ -19,21 +19,9 @@ type CommandeJour = {
   created_at: string;
 };
 
-type ResumeDashboard = {
-  ca_jour: number;
-  ca_hier: number;
-  ca_semaine: number;
-  ca_semaine_precedente: number;
-  ca_mois: number;
-  ca_mois_precedent: number;
-  ca_annee: number;
-  ca_annee_precedente: number;
-  nb_commandes_jour: number;
-  nb_commandes_payees_jour: number;
+type ResumeActuel = {
   commandes_en_attente: number;
-  depenses_jour: number;
   sessions_ouvertes: number;
-  ecart_jour: number;
   alertes_stock: number;
   production_jour: number;
 };
@@ -51,46 +39,12 @@ type CaQuotidien = { jour: string; ca: number };
 type ResumePeriode = {
   ca_total: number;
   nb_commandes: number;
-  nb_commandes_payees: number;
   nb_commandes_annulees: number;
   panier_moyen: number;
+  depenses_total: number;
+  ecart_caisse_total: number;
   production_total: number;
 };
-
-function BadgeVariation({ pct }: { pct: number | null }) {
-  if (pct === null) {
-    return <span className="text-[.65rem] font-bold text-ink-soft opacity-60">Nouveau</span>;
-  }
-  const positif = pct >= 0;
-  return (
-    <span className={`text-[.65rem] font-bold ${positif ? "text-green" : "text-red-600"}`}>
-      {positif ? "▲" : "▼"} {Math.abs(pct).toFixed(0)}%
-    </span>
-  );
-}
-
-function CarteCA({
-  label,
-  valeur,
-  comparaisonLabel,
-  pct,
-}: {
-  label: string;
-  valeur: number;
-  comparaisonLabel: string;
-  pct: number | null;
-}) {
-  return (
-    <div className="rounded-[10px] bg-paper p-3">
-      <div className="text-xs text-ink-soft">{label}</div>
-      <div className="font-bold text-green">{valeur.toLocaleString("fr-FR")} F</div>
-      <div className="mt-0.5 flex items-center gap-1.5">
-        <BadgeVariation pct={pct} />
-        <span className="text-[.6rem] text-ink-soft opacity-60">vs {comparaisonLabel}</span>
-      </div>
-    </div>
-  );
-}
 
 function CarteStat({
   label,
@@ -174,20 +128,25 @@ export default async function DashboardPage({
   const jFin = ajouterJours(jDebut, 1);
 
   const [
-    { data: resume, error: resumeError },
+    { data: resumeActuelData, error: resumeError },
     { data: produitsMoisData },
     { data: productionData },
     { data: caissiersData },
     { data: graphData },
     { data: commandesJourData },
     { data: resumePeriodeData },
-    { data: graphPeriodeData },
   ] = await Promise.all([
     supabase.rpc("dashboard_resume", { p_restaurant_id: restaurant.id }).single(),
     supabase.rpc("dashboard_produits_mois", { p_restaurant_id: restaurant.id }),
     supabase.rpc("dashboard_production_employes_jour", { p_restaurant_id: restaurant.id }),
     supabase.rpc("dashboard_performance_caissiers_jour", { p_restaurant_id: restaurant.id }),
-    supabase.rpc("dashboard_ca_quotidien", { p_restaurant_id: restaurant.id, p_jours: 14 }),
+    periode === "jour"
+      ? supabase.rpc("dashboard_ca_quotidien", { p_restaurant_id: restaurant.id, p_jours: 14 })
+      : supabase.rpc("rapport_ca_quotidien", {
+          p_restaurant_id: restaurant.id,
+          p_debut: debutPeriode.toISOString(),
+          p_fin: finPeriode.toISOString(),
+        }),
     supabase
       .from("commandes")
       .select("id, numero, canal, statut, total, motif_annulation, created_at")
@@ -202,14 +161,9 @@ export default async function DashboardPage({
         p_fin: finPeriode.toISOString(),
       })
       .single(),
-    supabase.rpc("rapport_ca_quotidien", {
-      p_restaurant_id: restaurant.id,
-      p_debut: debutPeriode.toISOString(),
-      p_fin: finPeriode.toISOString(),
-    }),
   ]);
 
-  const r = resume as ResumeDashboard | null;
+  const r = resumeActuelData as ResumeActuel | null;
   const produitsMois = (produitsMoisData ?? []) as ProduitVendu[];
   const production = (productionData ?? []) as ProductionEmploye[];
   const caissiers = (caissiersData ?? []) as PerformanceCaissier[];
@@ -219,10 +173,8 @@ export default async function DashboardPage({
   }));
   const commandesJourListe = (commandesJourData ?? []) as CommandeJour[];
   const rPeriode = resumePeriodeData as ResumePeriode | null;
-  const graphPeriodeJours = ((graphPeriodeData ?? []) as CaQuotidien[]).map((j) => ({
-    label: new Date(`${j.jour}T00:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
-    valeur: Number(j.ca),
-  }));
+  const titreGraph =
+    periode === "jour" ? "Chiffre d'affaires des 14 derniers jours" : "Chiffre d'affaires par jour";
 
   const topProduits = produitsMois.slice(0, 5);
   const flopProduits = [...produitsMois].reverse().slice(0, 5);
@@ -252,6 +204,52 @@ export default async function DashboardPage({
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2">
+        {PERIODES.map((p) => (
+          <Link
+            key={p.value}
+            href={lienAvec({ periode: p.value })}
+            className={`rounded-[9px] border px-3 py-1.5 text-sm font-bold transition ${
+              periode === p.value
+                ? "border-orange bg-orange text-white"
+                : "border-line bg-surface text-ink-soft hover:border-orange"
+            }`}
+          >
+            {p.label}
+          </Link>
+        ))}
+      </div>
+
+      {periode === "personnalise" && (
+        <form className="flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-surface p-3">
+          <input type="hidden" name="periode" value="personnalise" />
+          {restaurantSelectionneId && (
+            <input type="hidden" name="restaurant" value={restaurantSelectionneId} />
+          )}
+          <label className="flex flex-col gap-1 text-xs font-bold text-ink-soft">
+            Du
+            <input
+              type="date"
+              name="debut"
+              defaultValue={debutParam}
+              className="rounded-[8px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-bold text-ink-soft">
+            Au
+            <input
+              type="date"
+              name="fin"
+              defaultValue={finParam}
+              className="rounded-[8px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+            />
+          </label>
+          <button type="submit" className="rounded-[9px] bg-orange px-4 py-1.5 text-sm font-bold text-white">
+            Appliquer
+          </button>
+        </form>
+      )}
+
       {!r ? (
         <div className="rounded-card border border-red-300 bg-red-50 p-4">
           <p className="font-bold text-red-600">Impossible de charger les indicateurs.</p>
@@ -262,67 +260,62 @@ export default async function DashboardPage({
             </p>
           )}
         </div>
+      ) : !rPeriode ? (
+        <div className="rounded-card border border-line bg-surface p-5">
+          <p className="text-sm text-ink-soft opacity-70">Aucune donnée pour cette période.</p>
+        </div>
       ) : (
         <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="mb-4 font-display text-lg font-extrabold text-ink">{restaurant.nom}</h2>
+          <h2 className="mb-4 font-display text-lg font-extrabold text-ink">
+            {restaurant.nom} · {labelPeriode}
+          </h2>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <CarteCA
-              label="CA du jour"
-              valeur={Number(r.ca_jour)}
-              comparaisonLabel="hier"
-              pct={variation(Number(r.ca_jour), Number(r.ca_hier))}
-            />
-            <CarteCA
-              label="CA de la semaine"
-              valeur={Number(r.ca_semaine)}
-              comparaisonLabel="sem. précédente"
-              pct={variation(Number(r.ca_semaine), Number(r.ca_semaine_precedente))}
-            />
-            <CarteCA
-              label="CA du mois"
-              valeur={Number(r.ca_mois)}
-              comparaisonLabel="mois précédent"
-              pct={variation(Number(r.ca_mois), Number(r.ca_mois_precedent))}
-            />
-            <CarteCA
-              label="CA de l'année"
-              valeur={Number(r.ca_annee)}
-              comparaisonLabel="année précédente"
-              pct={variation(Number(r.ca_annee), Number(r.ca_annee_precedente))}
-            />
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <CarteStat label="Commandes du jour" valeur={Number(r.nb_commandes_jour)} />
+            <div className="rounded-[10px] bg-paper p-3">
+              <div className="text-xs text-ink-soft">Chiffre d&apos;affaires</div>
+              <div className="font-bold text-green">{Number(rPeriode.ca_total).toLocaleString("fr-FR")} F</div>
+            </div>
             <CarteStat
               label="Panier moyen"
-              valeur={`${
-                Number(r.nb_commandes_payees_jour) > 0
-                  ? Math.round(Number(r.ca_jour) / Number(r.nb_commandes_payees_jour)).toLocaleString("fr-FR")
-                  : 0
-              } F`}
+              valeur={`${Math.round(Number(rPeriode.panier_moyen)).toLocaleString("fr-FR")} F`}
             />
+            <CarteStat label="Commandes" valeur={Number(rPeriode.nb_commandes)} />
             <CarteStat
-              label="Commandes en attente"
-              valeur={Number(r.commandes_en_attente)}
-              alerte={Number(r.commandes_en_attente) > 0}
+              label="Commandes annulées"
+              valeur={Number(rPeriode.nb_commandes_annulees)}
+              alerte={Number(rPeriode.nb_commandes_annulees) > 0}
             />
-            <CarteStat label="Production du jour" valeur={Number(r.production_jour)} />
-            <CarteStat label="Dépenses du jour" valeur={`${Number(r.depenses_jour).toLocaleString("fr-FR")} F`} />
-            <CarteStat label="Caisses ouvertes" valeur={Number(r.sessions_ouvertes)} />
+            <CarteStat label="Dépenses" valeur={`${Number(rPeriode.depenses_total).toLocaleString("fr-FR")} F`} />
             <CarteStat
-              label="Écart caisse (jour)"
-              valeur={`${Number(r.ecart_jour).toLocaleString("fr-FR")} F`}
-              alerte={Number(r.ecart_jour) !== 0}
+              label="Écart de caisse"
+              valeur={`${Number(rPeriode.ecart_caisse_total).toLocaleString("fr-FR")} F`}
+              alerte={Number(rPeriode.ecart_caisse_total) !== 0}
             />
-            <CarteStat label="Alertes stock" valeur={Number(r.alertes_stock)} alerte={Number(r.alertes_stock) > 0} />
+            <CarteStat label="Production" valeur={Number(rPeriode.production_total)} />
           </div>
 
           <div className="mt-5 border-t border-line pt-4">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
-              CA des 14 derniers jours
+              État actuel (maintenant)
             </h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <CarteStat
+                label="Commandes en attente"
+                valeur={Number(r.commandes_en_attente)}
+                alerte={Number(r.commandes_en_attente) > 0}
+              />
+              <CarteStat label="Caisses ouvertes" valeur={Number(r.sessions_ouvertes)} />
+              <CarteStat label="Production du jour" valeur={Number(r.production_jour)} />
+              <CarteStat
+                label="Alertes stock"
+                valeur={Number(r.alertes_stock)}
+                alerte={Number(r.alertes_stock) > 0}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-line pt-4">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">{titreGraph}</h3>
             <BarChartCA data={graphJours} />
           </div>
 
@@ -426,18 +419,21 @@ export default async function DashboardPage({
             </p>
           ) : (
             <div className="mt-5 flex flex-col gap-4 border-t border-line pt-4">
+              <h3 className="text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
+                Commandes du jour
+              </h3>
               {STATUTS_ORDRE.map((statut) => {
                 const groupe = commandesJourListe.filter((cmd) => cmd.statut === statut);
                 if (groupe.length === 0) return null;
 
                 return (
                   <div key={statut}>
-                    <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
+                    <h4 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
                       {LABELS_STATUT[statut] ?? statut}
                       <span className="rounded-[6px] bg-paper px-1.5 py-0.5 text-[.7rem] font-bold text-ink">
                         {groupe.length}
                       </span>
-                    </h3>
+                    </h4>
                     <ul className="flex flex-col gap-1.5">
                       {groupe.map((cmd) => (
                         <li
@@ -481,92 +477,6 @@ export default async function DashboardPage({
           )}
         </section>
       )}
-
-      <section className="rounded-card border border-line bg-surface p-5">
-        <h2 className="mb-4 font-display text-lg font-extrabold text-ink">Filtrer par période</h2>
-
-        <div className="flex flex-wrap gap-2">
-          {PERIODES.map((p) => (
-            <Link
-              key={p.value}
-              href={lienAvec({ periode: p.value })}
-              className={`rounded-[9px] border px-3 py-1.5 text-sm font-bold transition ${
-                periode === p.value
-                  ? "border-orange bg-orange text-white"
-                  : "border-line bg-surface text-ink-soft hover:border-orange"
-              }`}
-            >
-              {p.label}
-            </Link>
-          ))}
-        </div>
-
-        {periode === "personnalise" && (
-          <form className="mt-3 flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-paper p-3">
-            <input type="hidden" name="periode" value="personnalise" />
-            {restaurantSelectionneId && (
-              <input type="hidden" name="restaurant" value={restaurantSelectionneId} />
-            )}
-            <label className="flex flex-col gap-1 text-xs font-bold text-ink-soft">
-              Du
-              <input
-                type="date"
-                name="debut"
-                defaultValue={debutParam}
-                className="rounded-[8px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-bold text-ink-soft">
-              Au
-              <input
-                type="date"
-                name="fin"
-                defaultValue={finParam}
-                className="rounded-[8px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink"
-              />
-            </label>
-            <button type="submit" className="rounded-[9px] bg-orange px-4 py-1.5 text-sm font-bold text-white">
-              Appliquer
-            </button>
-          </form>
-        )}
-
-        {!rPeriode ? (
-          <p className="mt-4 text-sm text-ink-soft opacity-70">Aucune donnée pour cette période.</p>
-        ) : (
-          <>
-            <h3 className="mt-5 mb-3 border-t border-line pt-4 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
-              {labelPeriode}
-            </h3>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-[10px] bg-paper p-3">
-                <div className="text-xs text-ink-soft">Chiffre d&apos;affaires</div>
-                <div className="font-bold text-green">{Number(rPeriode.ca_total).toLocaleString("fr-FR")} F</div>
-              </div>
-              <CarteStat
-                label="Panier moyen"
-                valeur={`${Math.round(Number(rPeriode.panier_moyen)).toLocaleString("fr-FR")} F`}
-              />
-              <CarteStat label="Commandes" valeur={Number(rPeriode.nb_commandes)} />
-              <CarteStat
-                label="Commandes annulées"
-                valeur={Number(rPeriode.nb_commandes_annulees)}
-                alerte={Number(rPeriode.nb_commandes_annulees) > 0}
-              />
-              <CarteStat label="Production" valeur={Number(rPeriode.production_total)} />
-            </div>
-
-            {graphPeriodeJours.length > 0 && (
-              <div className="mt-5 border-t border-line pt-4">
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-[.05em] text-ink-soft">
-                  Chiffre d&apos;affaires par jour
-                </h3>
-                <BarChartCA data={graphPeriodeJours} />
-              </div>
-            )}
-          </>
-        )}
-      </section>
     </div>
   );
 }
