@@ -204,6 +204,25 @@ export function IconSearch({ className }: IconProps) {
   );
 }
 
+export function IconImage({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <circle cx="9" cy="10" r="1.6" fill="currentColor" stroke="none" />
+      <path d="m5 17 5-5 3 3 3-3.5 3.5 4" />
+    </svg>
+  );
+}
+
+export function IconCamera({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1-2h7l1 2h2A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z" />
+      <circle cx="12" cy="13" r="3.3" />
+    </svg>
+  );
+}
+
 export function IconShield({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
