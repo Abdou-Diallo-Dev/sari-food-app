@@ -16,6 +16,12 @@ const POLES = [
   { value: "fastfood", label: "Fast-Food" },
 ] as const;
 
+const LABELS_POLE: Record<string, string> = {
+  patisserie: "Pâtisserie",
+  boulangerie: "Boulangerie",
+  fastfood: "Fast-Food",
+};
+
 type Produit = {
   id: string;
   nom: string;
@@ -27,6 +33,8 @@ type Production = {
   quantite_produite: number;
   quantite_restante: number;
 };
+
+type Contribution = { pole: string; quantite_produite: number };
 
 export default async function ProductionPage() {
   const profile = await requireProfile();
@@ -42,6 +50,7 @@ export default async function ProductionPage() {
   const vueTotale = ["admin", "manager", "pdg", "caissiere"].includes(profile.role);
   const peutModifier =
     profile.role === "admin" || profile.role === "manager" || (ROLES_CHEF as readonly string[]).includes(profile.role);
+  const peutChoisirPole = profile.role === "admin" || profile.role === "manager";
 
   if (!profile.restaurant_id) {
     return (
@@ -52,13 +61,32 @@ export default async function ProductionPage() {
   }
 
   const supabase = await createClient();
+  const aujourdhui = new Date().toISOString().slice(0, 10);
 
-  const { data: produitsData } = await supabase
-    .from("produits")
-    .select("id, nom, categorie_id, categories_produits(pole)")
-    .eq("restaurant_id", profile.restaurant_id)
-    .eq("actif", true)
-    .order("nom");
+  const [{ data: produitsData }, { data: productionData }, { data: contributionsData }, { data: objectifsData }] =
+    await Promise.all([
+      supabase
+        .from("produits")
+        .select("id, nom, categorie_id, categories_produits(pole)")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("actif", true)
+        .order("nom"),
+      supabase
+        .from("production_jour")
+        .select("produit_id, quantite_produite, quantite_restante")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("jour", aujourdhui),
+      supabase
+        .from("production_jour_contributions")
+        .select("produit_id, pole, quantite_produite")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("jour", aujourdhui),
+      supabase
+        .from("objectifs_production")
+        .select("produit_id, pole")
+        .eq("restaurant_id", profile.restaurant_id)
+        .eq("jour", aujourdhui),
+    ]);
 
   const tousProduits: Produit[] = (produitsData ?? []).map((p) => ({
     id: p.id,
@@ -66,18 +94,27 @@ export default async function ProductionPage() {
     pole: (p.categories_produits as unknown as { pole: Produit["pole"] } | null)?.pole ?? "patisserie",
   }));
 
-  const produits = vueTotale ? tousProduits : tousProduits.filter((p) => p.pole === profile.pole);
+  // Un chef voit ses produits catalogués + ceux pour lesquels le manager lui
+  // a assigné une part d'objectif aujourd'hui, même catalogués sous un autre
+  // pôle (ex: pain catalogué boulangerie, objectif partagé avec fast-food).
+  const produitsAssignesAMonPole = new Set(
+    (objectifsData ?? []).filter((o) => o.pole === profile.pole).map((o) => o.produit_id),
+  );
 
-  const aujourdhui = new Date().toISOString().slice(0, 10);
-  const { data: productionData } = await supabase
-    .from("production_jour")
-    .select("produit_id, quantite_produite, quantite_restante")
-    .eq("restaurant_id", profile.restaurant_id)
-    .eq("jour", aujourdhui);
+  const produits = vueTotale
+    ? tousProduits
+    : tousProduits.filter((p) => p.pole === profile.pole || produitsAssignesAMonPole.has(p.id));
 
   const productionParProduit = new Map<string, Production>(
     (productionData ?? []).map((p) => [p.produit_id, p]),
   );
+
+  const contributionsParProduit = new Map<string, Contribution[]>();
+  for (const c of contributionsData ?? []) {
+    const liste = contributionsParProduit.get(c.produit_id) ?? [];
+    liste.push(c);
+    contributionsParProduit.set(c.produit_id, liste);
+  }
 
   const polesAffiches = vueTotale ? POLES : POLES.filter((p) => p.value === profile.pole);
 
@@ -89,7 +126,10 @@ export default async function ProductionPage() {
       </h1>
 
       {polesAffiches.map((pole) => {
-        const items = produits.filter((p) => p.pole === pole.value);
+        // Vue chef : un seul pôle affiché de toute façon, mais la liste peut
+        // inclure des produits catalogués ailleurs (assignation croisée) —
+        // pas de filtre par pôle catalogue dans ce cas.
+        const items = vueTotale ? produits.filter((p) => p.pole === pole.value) : produits;
         if (items.length === 0) return null;
 
         return (
@@ -104,6 +144,10 @@ export default async function ProductionPage() {
                 const enRupture = prod !== undefined && restante === 0;
                 const pourcentage =
                   produite && produite > 0 ? Math.min(100, Math.max(0, ((restante ?? 0) / produite) * 100)) : 0;
+
+                const contributions = contributionsParProduit.get(p.id) ?? [];
+                const plusieursPoles = contributions.length > 1;
+                const maContribution = contributions.find((c) => c.pole === profile.pole);
 
                 return (
                   <div
@@ -132,16 +176,37 @@ export default async function ProductionPage() {
                       </div>
                     )}
 
+                    {plusieursPoles && (
+                      <p className="mb-2 text-xs text-ink-soft opacity-80">
+                        {contributions.map((c) => `${LABELS_POLE[c.pole]} : ${c.quantite_produite}`).join(" · ")}
+                      </p>
+                    )}
+
                     {peutModifier && (
                       <form action={definirProduction} className="flex flex-wrap items-center gap-2 pt-1">
                         <input type="hidden" name="produit_id" value={p.id} />
+                        {peutChoisirPole ? (
+                          <select
+                            name="pole"
+                            defaultValue={p.pole}
+                            className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
+                          >
+                            {POLES.map((pl) => (
+                              <option key={pl.value} value={pl.value}>
+                                {pl.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input type="hidden" name="pole" value={profile.pole ?? p.pole} />
+                        )}
                         <input
                           type="number"
                           name="quantite_produite"
                           required
                           min={0}
                           step={1}
-                          defaultValue={produite ?? ""}
+                          defaultValue={peutChoisirPole ? "" : maContribution?.quantite_produite ?? ""}
                           placeholder="Quantité produite aujourd'hui"
                           className="w-48 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
                         />

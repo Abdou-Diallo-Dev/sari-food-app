@@ -17,9 +17,13 @@ export async function definirProduction(formData: FormData): Promise<void> {
   requireRole(profile, [...ROLES_PRODUCTION]);
 
   const produit_id = String(formData.get("produit_id") ?? "");
+  const pole = String(formData.get("pole") ?? "");
   const quantite_produite = Number(formData.get("quantite_produite"));
 
   if (!produit_id) throw new Error("Produit introuvable.");
+  if (!["patisserie", "boulangerie", "fastfood"].includes(pole)) {
+    throw new Error("Pôle invalide.");
+  }
   if (!Number.isInteger(quantite_produite) || quantite_produite < 0) {
     throw new Error("La quantité doit être un nombre entier positif ou nul.");
   }
@@ -27,6 +31,7 @@ export async function definirProduction(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("definir_production_jour", {
     p_produit_id: produit_id,
+    p_pole: pole,
     p_quantite: quantite_produite,
   });
 
