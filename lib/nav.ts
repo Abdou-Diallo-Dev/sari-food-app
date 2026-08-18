@@ -54,6 +54,9 @@ export function navItemsPour(role: string): NavItem[] {
   if (isGestion || role === "pdg") {
     items.push({ href: "/admin/caisse", label: "Suivi caisse", icon: IconWallet });
   }
+  if (["admin", "manager", "comptable", "pdg"].includes(role)) {
+    items.push({ href: "/caisse-globale", label: "Caisse globale", icon: IconWallet });
+  }
   if (isGestion || role === "pdg" || ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role)) {
     items.push({ href: "/stock", label: "Stock", icon: IconBox });
   }

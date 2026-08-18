@@ -58,9 +58,13 @@ export async function decaisserDemande(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const montant_decaisse = Number(formData.get("montant_decaisse"));
   const fournisseur_id = String(formData.get("fournisseur_id") ?? "").trim();
+  const sous_caisse = String(formData.get("sous_caisse") ?? "");
   if (!id) throw new Error("Demande introuvable.");
   if (!Number.isFinite(montant_decaisse) || montant_decaisse <= 0) {
     throw new Error("Le montant décaissé doit être supérieur à zéro.");
+  }
+  if (!["especes", "wave", "orange_money"].includes(sous_caisse)) {
+    throw new Error("Choisissez la sous-caisse (Espèces, Wave ou Orange Money) utilisée pour ce décaissement.");
   }
 
   const supabase = await createClient();
@@ -72,12 +76,30 @@ export async function decaisserDemande(formData: FormData): Promise<void> {
       ...(fournisseur_id ? { fournisseur_id } : {}),
     })
     .eq("id", id)
-    .select("id");
+    .select("id, restaurant_id")
+    .single();
 
-  if (error || !data || data.length === 0) {
+  if (error || !data) {
     throw new Error(error?.message ?? "Décaissement impossible.");
   }
+
+  const { error: ledgerError } = await supabase.from("mouvements_caisse_globale").insert({
+    type: "sortie",
+    categorie: "decaissement_appro",
+    sous_caisse,
+    montant: montant_decaisse,
+    demande_id: id,
+    restaurant_id: data.restaurant_id,
+    utilisateur_id: profile.id,
+  });
+  if (ledgerError) {
+    throw new Error(
+      "La demande a été marquée décaissée mais l'écriture en caisse globale a échoué : " + ledgerError.message,
+    );
+  }
+
   chemin();
+  revalidatePath("/caisse-globale");
 }
 
 const ROLES_CHEF = [

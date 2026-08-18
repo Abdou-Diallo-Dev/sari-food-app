@@ -9,6 +9,7 @@ import {
   supprimerDemande,
 } from "./actions";
 import { IconAlert } from "@/components/icons";
+import { MOYENS_PAIEMENT_CAISSE } from "@/lib/caisse";
 
 const ROLES_CHEF = ["chef_patisserie", "chef_boulangerie", "chef_fastfood"] as const;
 
@@ -188,6 +189,21 @@ export default async function ApprovisionnementPage() {
                       placeholder="Montant décaissé (F)"
                       className="w-40 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
                     />
+                    <select
+                      name="sous_caisse"
+                      required
+                      defaultValue=""
+                      className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
+                    >
+                      <option value="" disabled>
+                        — sous-caisse —
+                      </option>
+                      {MOYENS_PAIEMENT_CAISSE.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="submit"
                       className="rounded-[8px] bg-orange px-3 py-1 text-sm font-bold text-white"

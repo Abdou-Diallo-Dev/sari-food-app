@@ -161,6 +161,30 @@ export async function cloturerSession(formData: FormData) {
     apres: { statut: "cloturee", total_theorique, total_compte, ecart: ecart_especes },
   });
 
+  const entrees = [
+    { sous_caisse: "especes" as const, montant: total_compte_especes },
+    { sous_caisse: "wave" as const, montant: theoriqueWave },
+    { sous_caisse: "orange_money" as const, montant: theoriqueOrangeMoney },
+  ].filter((e) => e.montant > 0);
+  if (entrees.length > 0) {
+    try {
+      await supabase.from("mouvements_caisse_globale").insert(
+        entrees.map((e) => ({
+          type: "entree" as const,
+          categorie: "cloture_session" as const,
+          sous_caisse: e.sous_caisse,
+          montant: e.montant,
+          session_id: sessionId,
+          restaurant_id: session.restaurant_id,
+          utilisateur_id: profile.id,
+        })),
+      );
+    } catch {
+      // remontée en caisse globale best-effort : ne jamais casser la clôture
+    }
+  }
+
   revalidatePath("/caisse");
   revalidatePath("/admin/caisse");
+  revalidatePath("/caisse-globale");
 }
