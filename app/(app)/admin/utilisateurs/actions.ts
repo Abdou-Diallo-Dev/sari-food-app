@@ -5,15 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile, requireRole } from "@/lib/auth";
-
-const ROLES_AVEC_POLE = [
-  "chef_patisserie",
-  "chef_boulangerie",
-  "chef_fastfood",
-  "equipier_patisserie",
-  "equipier_boulangerie",
-  "equipier_fastfood",
-];
+import { ROLES_AVEC_POLE } from "@/lib/roles";
 
 function messageErreur(erreur: unknown): string {
   if (erreur instanceof Error) return erreur.message;
@@ -53,7 +45,7 @@ export async function createUtilisateur(formData: FormData): Promise<void> {
   const motDePasse = String(formData.get("mot_de_passe") ?? "");
   const role = String(formData.get("role") ?? "");
   const poleRaw = String(formData.get("pole") ?? "");
-  const pole = ROLES_AVEC_POLE.includes(role) && poleRaw ? poleRaw : null;
+  const pole = ROLES_AVEC_POLE.includes(role as (typeof ROLES_AVEC_POLE)[number]) && poleRaw ? poleRaw : null;
   const restaurantIdRaw = String(formData.get("restaurant_id") ?? "");
   const restaurantId = restaurantIdRaw || null;
 
@@ -111,7 +103,7 @@ export async function updateUtilisateur(formData: FormData): Promise<void> {
   const nom = String(formData.get("nom") ?? "").trim();
   const role = String(formData.get("role") ?? "");
   const poleRaw = String(formData.get("pole") ?? "");
-  const pole = ROLES_AVEC_POLE.includes(role) && poleRaw ? poleRaw : null;
+  const pole = ROLES_AVEC_POLE.includes(role as (typeof ROLES_AVEC_POLE)[number]) && poleRaw ? poleRaw : null;
   const restaurantIdRaw = String(formData.get("restaurant_id") ?? "");
   const restaurantId = restaurantIdRaw || null;
 

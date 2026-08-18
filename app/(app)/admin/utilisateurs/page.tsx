@@ -8,41 +8,8 @@ import {
   reinitialiserMotDePasse,
   migrerEmailsSariCom,
 } from "./actions";
-
-const ROLES = [
-  "admin",
-  "pdg",
-  "manager",
-  "comptable",
-  "chef_patisserie",
-  "chef_boulangerie",
-  "chef_fastfood",
-  "equipier_patisserie",
-  "equipier_boulangerie",
-  "equipier_fastfood",
-  "caissiere",
-] as const;
-
-const LABELS_ROLE: Record<string, string> = {
-  admin: "Admin",
-  pdg: "PDG",
-  manager: "Manager",
-  comptable: "Comptable",
-  chef_patisserie: "Chef Pâtisserie",
-  chef_boulangerie: "Chef Boulangerie",
-  chef_fastfood: "Chef Fast-Food",
-  equipier_patisserie: "Équipier Pâtisserie",
-  equipier_boulangerie: "Équipier Boulangerie",
-  equipier_fastfood: "Équipier Fast-Food",
-  caissiere: "Caissière",
-};
-
-const POLES = [
-  { value: "", label: "—" },
-  { value: "patisserie", label: "Pâtisserie" },
-  { value: "boulangerie", label: "Boulangerie" },
-  { value: "fastfood", label: "Fast-Food" },
-] as const;
+import { RolePoleSelect } from "@/components/RolePoleSelect";
+import type { RoleUtilisateur } from "@/lib/roles";
 
 type Utilisateur = {
   id: string;
@@ -171,33 +138,10 @@ export default async function UtilisateursPage({
             placeholder="Mot de passe (8 caractères min.)"
             className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
           />
-          <select
-            name="role"
-            required
-            defaultValue=""
-            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
-          >
-            <option value="" disabled>
-              Rôle
-            </option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {LABELS_ROLE[r]}
-              </option>
-            ))}
-          </select>
-          <select
-            name="pole"
-            defaultValue=""
-            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
-          >
-            <option value="">Pôle (rôles cuisine uniquement)</option>
-            {POLES.filter((p) => p.value).map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+          <RolePoleSelect
+            rolePlaceholder="Rôle"
+            selectClassName="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+          />
           <select
             name="restaurant_id"
             defaultValue=""
@@ -257,28 +201,11 @@ export default async function UtilisateursPage({
                 required
                 className="min-w-0 flex-1 rounded-[8px] border border-line bg-paper px-2 py-1 text-sm text-ink"
               />
-              <select
-                name="role"
-                defaultValue={u.role}
-                className="rounded-[8px] border border-line bg-paper px-2 py-1 text-sm text-ink"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {LABELS_ROLE[r]}
-                  </option>
-                ))}
-              </select>
-              <select
-                name="pole"
-                defaultValue={u.pole ?? ""}
-                className="rounded-[8px] border border-line bg-paper px-2 py-1 text-sm text-ink"
-              >
-                {POLES.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+              <RolePoleSelect
+                roleDefaultValue={u.role as RoleUtilisateur}
+                poleDefaultValue={u.pole ?? ""}
+                selectClassName="rounded-[8px] border border-line bg-paper px-2 py-1 text-sm text-ink"
+              />
               <select
                 name="restaurant_id"
                 defaultValue={u.restaurant_id ?? ""}
