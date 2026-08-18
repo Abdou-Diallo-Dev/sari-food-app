@@ -3,11 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import { createCommande, type PanierItem } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
+import { IconImage } from "@/components/icons";
 
 export type ProduitPos = {
   id: string;
   nom: string;
   prix: number;
+  imageUrl: string | null;
   categorie: string;
   pole: "patisserie" | "boulangerie" | "fastfood";
   enRupture: boolean;
@@ -113,20 +115,39 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                           key={p.id}
                           onClick={() => ajouter(p)}
                           disabled={p.enRupture}
-                          className={`rounded-[11px] border px-3 py-2.5 text-left transition ${
+                          className={`overflow-hidden rounded-[11px] border text-left transition ${
                             p.enRupture
                               ? "cursor-not-allowed border-line bg-line/20 opacity-60"
                               : "border-line bg-paper hover:border-orange"
                           }`}
                         >
-                          <div className="text-sm font-bold text-ink">{p.nom}</div>
-                          {p.enRupture ? (
-                            <div className="text-xs font-bold text-red-600">Rupture</div>
-                          ) : (
+                          <div className="relative aspect-square w-full bg-line/20">
+                            {p.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={p.imageUrl}
+                                alt={p.nom}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-ink-soft opacity-30">
+                                <IconImage className="h-8 w-8" />
+                              </div>
+                            )}
+                            {p.enRupture && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                <span className="rounded-full bg-red-600 px-2 py-0.5 text-[.65rem] font-bold uppercase text-white">
+                                  Rupture
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="px-3 py-2.5">
+                            <div className="text-sm font-bold text-ink">{p.nom}</div>
                             <div className="text-xs font-bold text-orange">
                               {p.prix.toLocaleString("fr-FR")} F
                             </div>
-                          )}
+                          </div>
                         </button>
                       ))}
                     </div>
