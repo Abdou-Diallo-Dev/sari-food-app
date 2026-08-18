@@ -18,14 +18,17 @@ const LABELS_CATEGORIE_DEPENSE: Record<string, string> = {
   divers: "Divers",
 };
 
-type Periode = "jour" | "semaine" | "mois" | "annee";
+type Periode = "jour" | "semaine" | "mois" | "annee" | "personnalise";
 
 const PERIODES: { value: Periode; label: string }[] = [
   { value: "jour", label: "Jour" },
   { value: "semaine", label: "Semaine" },
   { value: "mois", label: "Mois" },
   { value: "annee", label: "Année" },
+  { value: "personnalise", label: "Personnalisé" },
 ];
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 type Transaction = {
   id: string;
@@ -83,7 +86,7 @@ function lundiDeSemaine(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function decalerPeriode(date: string, periode: Periode, delta: number): string {
+function decalerPeriode(date: string, periode: "jour" | "semaine" | "mois" | "annee", delta: number): string {
   const d = new Date(date + "T00:00:00");
   if (periode === "jour") d.setDate(d.getDate() + delta);
   else if (periode === "semaine") d.setDate(d.getDate() + delta * 7);
@@ -92,7 +95,26 @@ function decalerPeriode(date: string, periode: Periode, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function bornesPeriode(date: string, periode: Periode): { debut: Date; fin: Date } {
+function bornesPersonnalisees(debutIso: string, finIso: string): { debut: Date; fin: Date } {
+  const debut = new Date(debutIso + "T00:00:00");
+  const fin = new Date(finIso + "T00:00:00");
+  fin.setDate(fin.getDate() + 1);
+  return { debut, fin };
+}
+
+function labelPlage(debutIso: string, finIso: string): string {
+  const debut = new Date(debutIso + "T00:00:00");
+  const fin = new Date(finIso + "T00:00:00");
+  if (debutIso === finIso) {
+    return debut.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+  }
+  return `${debut.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })} – ${fin.toLocaleDateString(
+    "fr-FR",
+    { day: "2-digit", month: "short", year: "numeric" },
+  )}`;
+}
+
+function bornesPeriode(date: string, periode: "jour" | "semaine" | "mois" | "annee"): { debut: Date; fin: Date } {
   if (periode === "jour") {
     const debut = new Date(date + "T00:00:00");
     const fin = new Date(debut);
@@ -118,7 +140,7 @@ function bornesPeriode(date: string, periode: Periode): { debut: Date; fin: Date
   };
 }
 
-function labelPeriode(date: string, periode: Periode): string {
+function labelPeriode(date: string, periode: "jour" | "semaine" | "mois" | "annee"): string {
   const { debut, fin } = bornesPeriode(date, periode);
   if (periode === "jour") {
     return debut.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
@@ -286,21 +308,28 @@ function SessionCard({ s }: { s: Session }) {
 export default async function AdminCaissePage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; periode?: string }>;
+  searchParams: Promise<{ date?: string; periode?: string; debut?: string; fin?: string }>;
 }) {
   const profile = await requireProfile();
   requireRole(profile, ["admin", "pdg", "manager"]);
 
-  const { date: dateParam, periode: periodeParam } = await searchParams;
-  const periode: Periode = (["jour", "semaine", "mois", "annee"] as const).includes(
+  const { date: dateParam, periode: periodeParam, debut: debutParam, fin: finParam } = await searchParams;
+  const periode: Periode = (["jour", "semaine", "mois", "annee", "personnalise"] as const).includes(
     periodeParam as Periode,
   )
     ? (periodeParam as Periode)
     : "jour";
-  const date =
-    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : new Date().toISOString().slice(0, 10);
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const date = dateParam && DATE_RE.test(dateParam) ? dateParam : aujourdhui;
 
-  const { debut, fin } = bornesPeriode(date, periode);
+  let debutPerso = debutParam && DATE_RE.test(debutParam) ? debutParam : decalerPeriode(aujourdhui, "jour", -6);
+  let finPerso = finParam && DATE_RE.test(finParam) ? finParam : aujourdhui;
+  if (debutPerso > finPerso) {
+    [debutPerso, finPerso] = [finPerso, debutPerso];
+  }
+
+  const { debut, fin } =
+    periode === "personnalise" ? bornesPersonnalisees(debutPerso, finPerso) : bornesPeriode(date, periode);
   const estPeriodeCourante = fin.getTime() > Date.now();
 
   const supabase = await createClient();
@@ -360,39 +389,83 @@ export default async function AdminCaissePage({
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-[9px] border border-line bg-surface p-1">
-          {PERIODES.map((p) => (
-            <Link
-              key={p.value}
-              href={`/admin/caisse?periode=${p.value}&date=${date}`}
-              className={`rounded-[7px] px-2.5 py-1 text-sm font-bold transition ${
-                periode === p.value
-                  ? "bg-orange text-white"
-                  : "text-ink-soft hover:text-orange"
-              }`}
-            >
-              {p.label}
-            </Link>
-          ))}
+          {PERIODES.map((p) => {
+            const href =
+              p.value === "personnalise"
+                ? `/admin/caisse?periode=personnalise&debut=${debutPerso}&fin=${finPerso}`
+                : `/admin/caisse?periode=${p.value}&date=${date}`;
+            return (
+              <Link
+                key={p.value}
+                href={href}
+                className={`rounded-[7px] px-2.5 py-1 text-sm font-bold transition ${
+                  periode === p.value
+                    ? "bg-orange text-white"
+                    : "text-ink-soft hover:text-orange"
+                }`}
+              >
+                {p.label}
+              </Link>
+            );
+          })}
         </div>
 
-        <Link
-          href={`/admin/caisse?periode=${periode}&date=${decalerPeriode(date, periode, -1)}`}
-          className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
-        >
-          ‹
-        </Link>
-        <span className="rounded-[9px] border border-line bg-surface px-3 py-1.5 text-sm font-bold capitalize text-ink">
-          {labelPeriode(date, periode)}
-        </span>
-        {!estPeriodeCourante && (
-          <Link
-            href={`/admin/caisse?periode=${periode}&date=${decalerPeriode(date, periode, 1)}`}
-            className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
-          >
-            ›
-          </Link>
+        {periode === "personnalise" ? (
+          <form action="/admin/caisse" className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="periode" value="personnalise" />
+            <label className="flex items-center gap-1.5 text-sm text-ink-soft">
+              Du
+              <input
+                type="date"
+                name="debut"
+                defaultValue={debutPerso}
+                max={aujourdhui}
+                className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-ink-soft">
+              au
+              <input
+                type="date"
+                name="fin"
+                defaultValue={finPerso}
+                max={aujourdhui}
+                className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-[9px] bg-orange px-3 py-1.5 text-sm font-bold text-white"
+            >
+              Afficher
+            </button>
+          </form>
+        ) : (
+          <>
+            <Link
+              href={`/admin/caisse?periode=${periode}&date=${decalerPeriode(date, periode, -1)}`}
+              className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+            >
+              ‹
+            </Link>
+            <span className="rounded-[9px] border border-line bg-surface px-3 py-1.5 text-sm font-bold capitalize text-ink">
+              {labelPeriode(date, periode)}
+            </span>
+            {!estPeriodeCourante && (
+              <Link
+                href={`/admin/caisse?periode=${periode}&date=${decalerPeriode(date, periode, 1)}`}
+                className="rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm font-bold text-ink-soft hover:border-orange hover:text-orange"
+              >
+                ›
+              </Link>
+            )}
+          </>
         )}
       </div>
+
+      {periode === "personnalise" && (
+        <p className="text-sm font-bold text-ink-soft">{labelPlage(debutPerso, finPerso)}</p>
+      )}
 
       {parRestaurant.length === 0 ? (
         <p className="text-ink-soft opacity-70">Aucun restaurant à afficher.</p>
