@@ -39,13 +39,13 @@ export function navItemsPour(role: string): NavItem[] {
     items.push({ href: "/dashboard", label: "Tableau de bord", icon: IconChart });
     items.push({ href: "/admin/rapports", label: "Rapports", icon: IconClipboard });
   }
-  if (["admin", "manager", "caissiere"].includes(role)) {
+  if (["admin", "manager", "caissiere", "pdg"].includes(role)) {
     items.push({ href: "/pos", label: "Prise de commande", icon: IconCart });
   }
-  if (isGestion || ROLES_CUISINE.includes(role)) {
+  if (isGestion || role === "pdg" || ROLES_CUISINE.includes(role)) {
     items.push({ href: "/kds", label: "Cuisine", icon: IconChefHat });
   }
-  if (role === "caissiere" || isGestion || ROLES_CUISINE.includes(role)) {
+  if (role === "caissiere" || isGestion || role === "pdg" || ROLES_CUISINE.includes(role)) {
     items.push({ href: "/production", label: "Production du jour", icon: IconGauge });
   }
   if (role === "caissiere" || isGestion) {
@@ -54,20 +54,20 @@ export function navItemsPour(role: string): NavItem[] {
   if (isGestion || role === "pdg") {
     items.push({ href: "/admin/caisse", label: "Suivi caisse", icon: IconWallet });
   }
-  if (isGestion || ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role)) {
+  if (isGestion || role === "pdg" || ["chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(role)) {
     items.push({ href: "/stock", label: "Stock", icon: IconBox });
   }
   if (
-    ["admin", "manager", "comptable", "chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(
+    ["admin", "manager", "comptable", "pdg", "chef_patisserie", "chef_boulangerie", "chef_fastfood"].includes(
       role,
     )
   ) {
     items.push({ href: "/approvisionnement", label: "Approvisionnement", icon: IconAlert });
   }
-  if (isGestion) {
+  if (isGestion || role === "pdg") {
     items.push({ href: "/admin/produits", label: "Catalogue produits", icon: IconBook });
   }
-  if (isGestion) {
+  if (isGestion || role === "pdg") {
     items.push({ href: "/admin/journal", label: "Journal d'audit", icon: IconShield });
   }
   if (role === "admin") {

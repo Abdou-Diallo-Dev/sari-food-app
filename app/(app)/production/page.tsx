@@ -33,12 +33,13 @@ export default async function ProductionPage() {
   requireRole(profile, [
     "admin",
     "manager",
+    "pdg",
     "caissiere",
     ...ROLES_CHEF,
     ...ROLES_EQUIPIER,
   ]);
 
-  const vueTotale = ["admin", "manager", "caissiere"].includes(profile.role);
+  const vueTotale = ["admin", "manager", "pdg", "caissiere"].includes(profile.role);
   const peutModifier =
     profile.role === "admin" || profile.role === "manager" || (ROLES_CHEF as readonly string[]).includes(profile.role);
 

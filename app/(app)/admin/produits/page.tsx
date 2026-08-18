@@ -38,7 +38,8 @@ type LigneRecette = { ingredient_id: string; quantite_utilisee: number };
 
 export default async function ProduitsPage() {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager"]);
+  requireRole(profile, ["admin", "manager", "pdg"]);
+  const lectureSeule = profile.role === "pdg";
 
   const supabase = await createClient();
   const [{ data: categories }, { data: produits }, { data: ingredients }, { data: recettes }] =
@@ -98,36 +99,40 @@ export default async function ProduitsPage() {
           <div className="flex flex-col gap-4">
             {categoriesParPole[pole.value].map((cat) => (
               <div key={cat.id} className="rounded-[14px] border border-line bg-paper p-4">
-                <form className="mb-2 flex items-center gap-2">
-                  <input type="hidden" name="id" value={cat.id} />
-                  <input
-                    type="text"
-                    name="nom"
-                    defaultValue={cat.nom}
-                    className="min-w-0 flex-1 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 font-bold text-ink hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
-                  />
-                  <button
-                    formAction={updateCategorie}
-                    type="submit"
-                    title="Enregistrer le nom"
-                    className="rounded-[8px] p-1.5 text-ink-soft hover:text-orange"
-                  >
-                    <IconCheck className="h-4 w-4" />
-                  </button>
-                  <button
-                    formAction={deleteCategorie}
-                    type="submit"
-                    disabled={cat.produits.length > 0}
-                    title={
-                      cat.produits.length > 0
-                        ? "Retirez d'abord tous les produits de cette catégorie pour pouvoir la supprimer"
-                        : "Supprimer la catégorie"
-                    }
-                    className="rounded-[8px] p-1.5 text-ink-soft hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-ink-soft"
-                  >
-                    <IconTrash className="h-4 w-4" />
-                  </button>
-                </form>
+                {lectureSeule ? (
+                  <p className="mb-2 font-bold text-ink">{cat.nom}</p>
+                ) : (
+                  <form className="mb-2 flex items-center gap-2">
+                    <input type="hidden" name="id" value={cat.id} />
+                    <input
+                      type="text"
+                      name="nom"
+                      defaultValue={cat.nom}
+                      className="min-w-0 flex-1 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 font-bold text-ink hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                    />
+                    <button
+                      formAction={updateCategorie}
+                      type="submit"
+                      title="Enregistrer le nom"
+                      className="rounded-[8px] p-1.5 text-ink-soft hover:text-orange"
+                    >
+                      <IconCheck className="h-4 w-4" />
+                    </button>
+                    <button
+                      formAction={deleteCategorie}
+                      type="submit"
+                      disabled={cat.produits.length > 0}
+                      title={
+                        cat.produits.length > 0
+                          ? "Retirez d'abord tous les produits de cette catégorie pour pouvoir la supprimer"
+                          : "Supprimer la catégorie"
+                      }
+                      className="rounded-[8px] p-1.5 text-ink-soft hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-ink-soft"
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </button>
+                  </form>
+                )}
 
                 {cat.produits.length > 0 && (
                   <ul className="mb-3 flex flex-col gap-1.5">
@@ -149,39 +154,52 @@ export default async function ProduitsPage() {
 
                       return (
                         <li key={p.id}>
-                          <form className="flex items-center gap-2 text-sm text-ink">
-                            <input type="hidden" name="id" value={p.id} />
-                            <input
-                              type="text"
-                              name="nom"
-                              defaultValue={p.nom}
-                              className={`min-w-0 flex-1 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 hover:border-line focus:border-orange focus:bg-surface focus:outline-none ${p.actif ? "" : "text-ink-soft line-through"}`}
-                            />
-                            <input
-                              type="number"
-                              name="prix"
-                              defaultValue={p.prix}
-                              min={1}
-                              step={1}
-                              className="w-20 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 text-right font-bold hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
-                            />
-                            <button
-                              formAction={updateProduit}
-                              type="submit"
-                              title="Enregistrer"
-                              className="rounded-[8px] p-1.5 text-ink-soft hover:text-orange"
-                            >
-                              <IconCheck className="h-4 w-4" />
-                            </button>
-                            <button
-                              formAction={deleteProduit}
-                              type="submit"
-                              title="Supprimer le produit"
-                              className="rounded-[8px] p-1.5 text-ink-soft hover:text-red-600"
-                            >
-                              <IconTrash className="h-4 w-4" />
-                            </button>
-                          </form>
+                          {lectureSeule ? (
+                            <div className="flex items-center gap-2 text-sm text-ink">
+                              <span
+                                className={`min-w-0 flex-1 px-1.5 py-0.5 ${p.actif ? "" : "text-ink-soft line-through"}`}
+                              >
+                                {p.nom}
+                              </span>
+                              <span className="w-20 px-1.5 py-0.5 text-right font-bold">
+                                {p.prix.toLocaleString("fr-FR")} F
+                              </span>
+                            </div>
+                          ) : (
+                            <form className="flex items-center gap-2 text-sm text-ink">
+                              <input type="hidden" name="id" value={p.id} />
+                              <input
+                                type="text"
+                                name="nom"
+                                defaultValue={p.nom}
+                                className={`min-w-0 flex-1 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 hover:border-line focus:border-orange focus:bg-surface focus:outline-none ${p.actif ? "" : "text-ink-soft line-through"}`}
+                              />
+                              <input
+                                type="number"
+                                name="prix"
+                                defaultValue={p.prix}
+                                min={1}
+                                step={1}
+                                className="w-20 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 text-right font-bold hover:border-line focus:border-orange focus:bg-surface focus:outline-none"
+                              />
+                              <button
+                                formAction={updateProduit}
+                                type="submit"
+                                title="Enregistrer"
+                                className="rounded-[8px] p-1.5 text-ink-soft hover:text-orange"
+                              >
+                                <IconCheck className="h-4 w-4" />
+                              </button>
+                              <button
+                                formAction={deleteProduit}
+                                type="submit"
+                                title="Supprimer le produit"
+                                className="rounded-[8px] p-1.5 text-ink-soft hover:text-red-600"
+                              >
+                                <IconTrash className="h-4 w-4" />
+                              </button>
+                            </form>
+                          )}
 
                           {ligneRecette.length > 0 && (
                             <p className="ml-1.5 text-xs text-ink-soft opacity-80">
@@ -210,28 +228,30 @@ export default async function ProduitsPage() {
                                           {ing?.nom ?? "Ingrédient supprimé"} — {l.quantite_utilisee}{" "}
                                           {ing?.unite}
                                         </span>
-                                        <form action={deleteRecetteIngredient}>
-                                          <input type="hidden" name="produit_id" value={p.id} />
-                                          <input
-                                            type="hidden"
-                                            name="ingredient_id"
-                                            value={l.ingredient_id}
-                                          />
-                                          <button
-                                            type="submit"
-                                            title="Retirer de la recette"
-                                            className="rounded-[6px] p-1 text-ink-soft hover:text-red-600"
-                                          >
-                                            <IconTrash className="h-3.5 w-3.5" />
-                                          </button>
-                                        </form>
+                                        {!lectureSeule && (
+                                          <form action={deleteRecetteIngredient}>
+                                            <input type="hidden" name="produit_id" value={p.id} />
+                                            <input
+                                              type="hidden"
+                                              name="ingredient_id"
+                                              value={l.ingredient_id}
+                                            />
+                                            <button
+                                              type="submit"
+                                              title="Retirer de la recette"
+                                              className="rounded-[6px] p-1 text-ink-soft hover:text-red-600"
+                                            >
+                                              <IconTrash className="h-3.5 w-3.5" />
+                                            </button>
+                                          </form>
+                                        )}
                                       </li>
                                     );
                                   })}
                                 </ul>
                               )}
 
-                              {ingredientsDisponibles.length > 0 && (
+                              {!lectureSeule && ingredientsDisponibles.length > 0 && (
                                 <form
                                   action={upsertRecetteIngredient}
                                   className="flex items-center gap-1.5"
@@ -274,54 +294,58 @@ export default async function ProduitsPage() {
                   </ul>
                 )}
 
-                <form action={createProduit} className="flex gap-2">
-                  <input type="hidden" name="categorie_id" value={cat.id} />
-                  <input
-                    type="text"
-                    name="nom"
-                    required
-                    placeholder="Nom du produit"
-                    className="min-w-0 flex-1 rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-                  />
-                  <input
-                    type="number"
-                    name="prix"
-                    required
-                    min={1}
-                    step={1}
-                    placeholder="Prix"
-                    className="w-24 rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-                  />
-                  <button
-                    type="submit"
-                    title="Ajouter le produit"
-                    className="rounded-[9px] bg-orange px-3 py-1.5 text-sm font-bold text-white"
-                  >
-                    <IconPlus className="h-4 w-4" />
-                  </button>
-                </form>
+                {!lectureSeule && (
+                  <form action={createProduit} className="flex gap-2">
+                    <input type="hidden" name="categorie_id" value={cat.id} />
+                    <input
+                      type="text"
+                      name="nom"
+                      required
+                      placeholder="Nom du produit"
+                      className="min-w-0 flex-1 rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                    />
+                    <input
+                      type="number"
+                      name="prix"
+                      required
+                      min={1}
+                      step={1}
+                      placeholder="Prix"
+                      className="w-24 rounded-[9px] border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                    />
+                    <button
+                      type="submit"
+                      title="Ajouter le produit"
+                      className="rounded-[9px] bg-orange px-3 py-1.5 text-sm font-bold text-white"
+                    >
+                      <IconPlus className="h-4 w-4" />
+                    </button>
+                  </form>
+                )}
               </div>
             ))}
 
-            <form
-              action={createCategorie}
-              className="flex gap-2 border-t border-line pt-3"
-            >
-              <input type="hidden" name="pole" value={pole.value} />
-              <input
-                type="text"
-                name="nom"
-                required
-                placeholder="Nouvelle catégorie"
-                className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-              />
-              <button
-                type="submit"
-                className="rounded-[9px] border border-line px-3 py-1.5 text-sm font-bold text-ink hover:border-orange hover:text-orange"
+            {!lectureSeule && (
+              <form
+                action={createCategorie}
+                className="flex gap-2 border-t border-line pt-3"
               >
-                Ajouter catégorie
-              </button>
-            </form>
+                <input type="hidden" name="pole" value={pole.value} />
+                <input
+                  type="text"
+                  name="nom"
+                  required
+                  placeholder="Nouvelle catégorie"
+                  className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                />
+                <button
+                  type="submit"
+                  className="rounded-[9px] border border-line px-3 py-1.5 text-sm font-bold text-ink hover:border-orange hover:text-orange"
+                >
+                  Ajouter catégorie
+                </button>
+              </form>
+            )}
           </div>
         </section>
       ))}

@@ -59,7 +59,7 @@ export default async function JournalAuditPage({
   searchParams: Promise<{ date?: string; entite?: string; restaurant?: string }>;
 }) {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager"]);
+  requireRole(profile, ["admin", "manager", "pdg"]);
 
   const {
     date: dateParam,

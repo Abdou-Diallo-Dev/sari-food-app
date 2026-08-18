@@ -6,7 +6,8 @@ import { IconCart } from "@/components/icons";
 
 export default async function PosPage() {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager", "caissiere"]);
+  requireRole(profile, ["admin", "manager", "caissiere", "pdg"]);
+  const lectureSeule = profile.role === "pdg";
 
   if (!profile.restaurant_id) {
     return (
@@ -64,7 +65,13 @@ export default async function PosPage() {
         Prise de commande
       </h1>
 
-      <PosClient produits={produitsPos} />
+      {lectureSeule ? (
+        <p className="rounded-[10px] border border-line bg-surface px-3.5 py-2.5 text-sm font-bold text-ink-soft">
+          Mode lecture seule — vue supervision. Seules les commandes du jour sont affichées ci-dessous.
+        </p>
+      ) : (
+        <PosClient produits={produitsPos} />
+      )}
 
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-3 font-display text-lg font-extrabold text-ink">

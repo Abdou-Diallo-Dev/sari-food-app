@@ -19,11 +19,13 @@ export default async function StockPage() {
   requireRole(profile, [
     "admin",
     "manager",
+    "pdg",
     "chef_patisserie",
     "chef_boulangerie",
     "chef_fastfood",
   ]);
 
+  const lectureSeule = profile.role === "pdg";
   const peutCreerIngredient = profile.role === "admin" || profile.role === "manager";
   const peutDemanderAppro = [
     "chef_patisserie",
@@ -181,39 +183,41 @@ export default async function StockPage() {
                       </form>
                     )}
 
-                    <form action={enregistrerMouvement} className="flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="ingredient_id" value={ing.id} />
-                      <select
-                        name="type"
-                        required
-                        className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
-                      >
-                        <option value="entree">Entrée</option>
-                        <option value="sortie">Sortie</option>
-                        <option value="ajustement">Ajustement (valeur exacte)</option>
-                      </select>
-                      <input
-                        type="number"
-                        name="quantite"
-                        required
-                        min={0}
-                        step="0.01"
-                        placeholder="Quantité"
-                        className="w-24 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-                      />
-                      <input
-                        type="text"
-                        name="motif"
-                        placeholder="Motif (optionnel)"
-                        className="min-w-0 flex-1 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-[8px] bg-orange px-3 py-1 text-sm font-bold text-white"
-                      >
-                        Enregistrer
-                      </button>
-                    </form>
+                    {!lectureSeule && (
+                      <form action={enregistrerMouvement} className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="ingredient_id" value={ing.id} />
+                        <select
+                          name="type"
+                          required
+                          className="rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink"
+                        >
+                          <option value="entree">Entrée</option>
+                          <option value="sortie">Sortie</option>
+                          <option value="ajustement">Ajustement (valeur exacte)</option>
+                        </select>
+                        <input
+                          type="number"
+                          name="quantite"
+                          required
+                          min={0}
+                          step="0.01"
+                          placeholder="Quantité"
+                          className="w-24 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                        />
+                        <input
+                          type="text"
+                          name="motif"
+                          placeholder="Motif (optionnel)"
+                          className="min-w-0 flex-1 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-[8px] bg-orange px-3 py-1 text-sm font-bold text-white"
+                        >
+                          Enregistrer
+                        </button>
+                      </form>
+                    )}
 
                     {peutDemanderAppro && (
                       <form

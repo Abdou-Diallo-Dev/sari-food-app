@@ -70,6 +70,7 @@ export default async function DashboardPage({
 }) {
   const profile = await requireProfile();
   requireRole(profile, ["admin", "pdg", "manager"]);
+  const lectureSeule = profile.role === "pdg";
 
   const supabase = await createClient();
   const {
@@ -457,7 +458,7 @@ export default async function DashboardPage({
                             <span className="font-bold text-ink">
                               {cmd.total.toLocaleString("fr-FR")} F
                             </span>
-                            {cmd.statut !== "payee" && cmd.statut !== "annulee" && (
+                            {!lectureSeule && cmd.statut !== "payee" && cmd.statut !== "annulee" && (
                               <form action={annulerCommande}>
                                 <input type="hidden" name="id" value={cmd.id} />
                                 <BoutonAnnulation

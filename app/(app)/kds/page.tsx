@@ -33,6 +33,7 @@ export default async function KdsPage({
   requireRole(profile, [
     "admin",
     "manager",
+    "pdg",
     "chef_patisserie",
     "chef_boulangerie",
     "chef_fastfood",
@@ -41,7 +42,8 @@ export default async function KdsPage({
     "equipier_fastfood",
   ]);
 
-  const peutChangerDePole = profile.role === "admin" || profile.role === "manager";
+  const lectureSeule = profile.role === "pdg";
+  const peutChangerDePole = profile.role === "admin" || profile.role === "manager" || lectureSeule;
   const { pole: poleParam } = await searchParams;
   const pole = peutChangerDePole ? (poleParam ?? "patisserie") : profile.pole!;
 
@@ -154,7 +156,11 @@ export default async function KdsPage({
                     <span className="text-sm font-bold text-ink">
                       {l.quantite}× {l.produits?.nom}
                     </span>
-                    {l.statut_preparation === "en_attente" ? (
+                    {lectureSeule ? (
+                      <span className="rounded-[7px] bg-paper px-2.5 py-1 text-xs font-bold text-ink-soft">
+                        {l.statut_preparation === "en_attente" ? "En attente" : "En préparation"}
+                      </span>
+                    ) : l.statut_preparation === "en_attente" ? (
                       <form>
                         <button
                           formAction={demarrerLigne.bind(null, l.id)}

@@ -45,7 +45,7 @@ type Demande = {
 
 export default async function ApprovisionnementPage() {
   const profile = await requireProfile();
-  requireRole(profile, ["admin", "manager", "comptable", ...ROLES_CHEF]);
+  requireRole(profile, ["admin", "manager", "comptable", "pdg", ...ROLES_CHEF]);
 
   const canValider = profile.role === "admin" || profile.role === "manager";
   const canDecaisser = profile.role === "admin" || profile.role === "manager" || profile.role === "comptable";
@@ -277,7 +277,7 @@ export default async function ApprovisionnementPage() {
         </section>
       )}
 
-      {(canValider || canDecaisser) && (
+      {(canValider || canDecaisser || profile.role === "pdg") && (
         <section className="rounded-card border border-line bg-surface p-5">
           <h2 className="mb-3 font-bold text-ink">Historique</h2>
           {historique.length === 0 ? (
