@@ -7,6 +7,7 @@ import {
   deleteCategorie,
   updateProduit,
   deleteProduit,
+  toggleProduitActif,
 } from "./actions";
 import { PhotoPicker } from "./photo-picker";
 import { IconBook, IconCheck, IconTrash, IconPlus, IconImage } from "@/components/icons";
@@ -125,7 +126,13 @@ export default async function ProduitsPage() {
                         <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[12px] bg-paper text-ink-soft">
                           {p.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={p.image_url} alt={p.nom} className="h-full w-full object-cover" />
+                            <img
+                              src={p.image_url}
+                              alt={p.nom}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-cover"
+                            />
                           ) : (
                             <IconImage className="h-6 w-6 opacity-40" />
                           )}
@@ -160,6 +167,23 @@ export default async function ProduitsPage() {
                           step={1}
                           className="w-full min-w-0 rounded-[8px] border border-transparent bg-transparent px-1.5 py-0.5 text-center text-sm font-bold text-orange hover:border-line focus:border-orange focus:bg-paper focus:outline-none"
                         />
+                        <button
+                          formAction={toggleProduitActif.bind(null, p.id, !p.actif)}
+                          type="submit"
+                          title={
+                            p.actif
+                              ? "En ligne — cliquer pour masquer du menu client"
+                              : "Masqué — cliquer pour remettre en ligne"
+                          }
+                          className={`rounded-full px-2 py-0.5 text-[.65rem] font-bold uppercase tracking-wide transition ${
+                            p.actif
+                              ? "bg-green/15 text-green hover:bg-green/25"
+                              : "bg-line/40 text-ink-soft hover:bg-line/60"
+                          }`}
+                        >
+                          {p.actif ? "En ligne" : "Masqué"}
+                        </button>
+
                         <div className="flex items-center gap-1">
                           <button
                             formAction={updateProduit}

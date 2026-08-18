@@ -101,3 +101,44 @@ export async function createCommande(
   revalidatePath("/");
   return { success: true, numero: commande.numero, id: commande.id };
 }
+
+// Une commande en ligne est matérialisée "payee" et part en cuisine dès le
+// paiement confirmé (le client ne voit pas le stock réel en commandant) :
+// ce point de contrôle permet à la caissière de la refuser après coup si un
+// article s'avère en rupture, ou de la valider explicitement sinon.
+export async function validerCommandeEnLigne(commandeId: string): Promise<{ error?: string }> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager", "caissiere"]);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("commandes")
+    .update({ confirmation_caisse: "validee" })
+    .eq("id", commandeId)
+    .eq("canal", "en_ligne")
+    .is("confirmation_caisse", null);
+
+  if (error) return { error: "Impossible de valider la commande." };
+
+  revalidatePath("/pos");
+  return {};
+}
+
+export async function refuserCommandeEnLigne(commandeId: string): Promise<{ error?: string }> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin", "manager", "caissiere"]);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("commandes")
+    .update({ confirmation_caisse: "refusee", statut: "annulee" })
+    .eq("id", commandeId)
+    .eq("canal", "en_ligne")
+    .is("confirmation_caisse", null);
+
+  if (error) return { error: "Impossible de refuser la commande." };
+
+  revalidatePath("/pos");
+  revalidatePath("/kds");
+  return {};
+}
