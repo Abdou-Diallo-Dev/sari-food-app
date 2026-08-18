@@ -1,6 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PosClient, type ProduitPos } from "./pos-client";
+import { CommandesEnLigneAValider, type CommandeAValider } from "./commandes-en-ligne";
 import { LABELS_STATUT, LABELS_CANAL } from "@/lib/commandes";
 import { IconCart } from "@/components/icons";
 
@@ -59,12 +60,49 @@ export default async function PosPage() {
     .gte("created_at", debutJournee.toISOString())
     .order("created_at", { ascending: false });
 
+  const { data: commandesEnLigneBrut } = await supabase
+    .from("commandes")
+    .select(
+      "id, numero, total, created_at, client_nom, client_telephone, adresse_livraison, lignes_commande(produit_id, quantite, produits(nom))",
+    )
+    .eq("restaurant_id", profile.restaurant_id)
+    .eq("canal", "en_ligne")
+    .is("confirmation_caisse", null)
+    .neq("statut", "annulee")
+    .order("created_at", { ascending: true });
+
+  const commandesEnLigne: CommandeAValider[] = (commandesEnLigneBrut ?? []).map((c) => ({
+    id: c.id,
+    numero: c.numero,
+    total: Number(c.total),
+    created_at: c.created_at,
+    client_nom: c.client_nom,
+    client_telephone: c.client_telephone,
+    adresse_livraison: c.adresse_livraison,
+    lignes: (
+      c.lignes_commande as unknown as {
+        produit_id: string;
+        quantite: number;
+        produits: { nom: string } | null;
+      }[]
+    ).map((l) => ({
+      produitId: l.produit_id,
+      nom: l.produits?.nom ?? "Article supprimé",
+      quantite: l.quantite,
+      enRupture: produitsEnRupture.has(l.produit_id),
+    })),
+  }));
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
         <IconCart className="h-6 w-6 text-orange" />
         Prise de commande
       </h1>
+
+      {!lectureSeule && commandesEnLigne.length > 0 && (
+        <CommandesEnLigneAValider commandes={commandesEnLigne} />
+      )}
 
       {lectureSeule ? (
         <p className="rounded-[10px] border border-line bg-surface px-3.5 py-2.5 text-sm font-bold text-ink-soft">

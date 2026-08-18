@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import sharp from "sharp";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +9,15 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { journaliser } from "@/lib/audit";
 
 const BUCKET_PRODUITS = "produits";
+
+// Les photos uploadées (souvent des photos de téléphone, plusieurs Mo) sont
+// bien plus grandes que leur taille d'affichage réelle (miniatures/cartes).
+// On les redimensionne et recompresse systématiquement en JPEG avant
+// stockage : le poids transféré au client/POS/catalogue en dépend
+// directement (cf. loading="lazy" côté affichage, qui limite le nombre
+// d'images chargées mais pas leur poids individuel).
+const LARGEUR_MAX_PX = 1000;
+const QUALITE_JPEG = 82;
 
 function cheminDepuisUrlPublique(url: string): string | null {
   const marqueur = `/storage/v1/object/public/${BUCKET_PRODUITS}/`;
@@ -18,13 +28,24 @@ function cheminDepuisUrlPublique(url: string): string | null {
 async function televerserPhoto(photo: File, restaurantId: string): Promise<string | null> {
   if (!photo || photo.size === 0) return null;
 
-  const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
-  const chemin = `${restaurantId}/${randomUUID()}.${extension}`;
+  const chemin = `${restaurantId}/${randomUUID()}.jpg`;
+
+  let buffer: Buffer;
+  try {
+    const original = Buffer.from(await photo.arrayBuffer());
+    buffer = await sharp(original)
+      .rotate()
+      .resize({ width: LARGEUR_MAX_PX, height: LARGEUR_MAX_PX, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: QUALITE_JPEG })
+      .toBuffer();
+  } catch {
+    return null;
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.storage
     .from(BUCKET_PRODUITS)
-    .upload(chemin, photo, { contentType: photo.type, upsert: false });
+    .upload(chemin, buffer, { contentType: "image/jpeg", upsert: false });
 
   if (error) return null;
 

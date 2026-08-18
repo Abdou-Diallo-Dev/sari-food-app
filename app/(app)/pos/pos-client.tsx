@@ -127,6 +127,8 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                               <img
                                 src={p.imageUrl}
                                 alt={p.nom}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-full w-full object-cover"
                               />
                             ) : (
