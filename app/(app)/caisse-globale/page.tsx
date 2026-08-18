@@ -207,9 +207,14 @@ export default async function CaisseGlobalePage({
 
   const supabase = await createClient();
 
+  let restaurantsQuery = supabase.from("restaurants").select("id, nom").order("nom");
+  if (profile.restaurant_id) {
+    restaurantsQuery = restaurantsQuery.eq("id", profile.restaurant_id);
+  }
+
   const [{ data: soldes }, { data: restaurants }] = await Promise.all([
     supabase.rpc("soldes_caisse_globale"),
-    supabase.from("restaurants").select("id, nom").order("nom"),
+    restaurantsQuery,
   ]);
 
   const soldesParSousCaisse = new Map<string, number>(
@@ -338,7 +343,7 @@ export default async function CaisseGlobalePage({
               placeholder="Libellé (ex: salaire équipe juillet)"
               className="min-w-0 flex-1 rounded-[8px] border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
             />
-            {restaurants && restaurants.length > 0 && (
+            {restaurants && restaurants.length > 1 && (
               <select
                 name="restaurant_id"
                 defaultValue=""
@@ -351,6 +356,9 @@ export default async function CaisseGlobalePage({
                   </option>
                 ))}
               </select>
+            )}
+            {restaurants && restaurants.length === 1 && (
+              <input type="hidden" name="restaurant_id" value={restaurants[0].id} />
             )}
             <button
               type="submit"
