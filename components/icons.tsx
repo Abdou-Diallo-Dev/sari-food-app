@@ -223,6 +223,17 @@ export function IconCamera({ className }: IconProps) {
   );
 }
 
+export function IconTruck({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M2.5 6.5h11v10h-11Z" />
+      <path d="M13.5 10h4l3 3.5v3h-7Z" />
+      <circle cx="7" cy="18" r="1.8" />
+      <circle cx="17" cy="18" r="1.8" />
+    </svg>
+  );
+}
+
 export function IconShield({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
