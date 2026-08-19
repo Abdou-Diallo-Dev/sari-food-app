@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createCommande, type PanierItem } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
-import { IconImage } from "@/components/icons";
+import { IconImage, IconSearch, IconClose } from "@/components/icons";
 
 export type ProduitPos = {
   id: string;
@@ -31,18 +31,28 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const [derniereCommandeId, setDerniereCommandeId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [recherche, setRecherche] = useState("");
+
+  // Filtre par nom uniquement : simple et prévisible pour une caissière
+  // pressée. Les pôles/catégories sans résultat disparaissent plutôt que de
+  // rester affichés vides.
+  const produitsAffiches = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    return terme ? produits.filter((p) => p.nom.toLowerCase().includes(terme)) : produits;
+  }, [produits, recherche]);
+
   const produitsParPole = useMemo(() => {
     const groupes: Record<string, Record<string, ProduitPos[]>> = {
       patisserie: {},
       boulangerie: {},
       fastfood: {},
     };
-    for (const p of produits) {
+    for (const p of produitsAffiches) {
       groupes[p.pole][p.categorie] ??= [];
       groupes[p.pole][p.categorie].push(p);
     }
     return groupes;
-  }, [produits]);
+  }, [produitsAffiches]);
 
   const polesVisibles = POLES.filter((pole) => Object.keys(produitsParPole[pole.value]).length > 0);
   const categoriesVisibles = polesVisibles.flatMap((pole) =>
@@ -51,6 +61,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const categorieRefs = useRef<Record<string, HTMLElement | null>>({});
+  const asideRef = useRef<HTMLElement | null>(null);
   const [poleActif, setPoleActif] = useState<string>(polesVisibles[0]?.value ?? POLES[0].value);
 
   // Barre d'onglets figée : surligne le pôle actuellement visible pendant
@@ -130,9 +141,35 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+    <div className={`grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] ${lignes.length > 0 ? "pb-20 lg:pb-0" : ""}`}>
       <div className="flex flex-col gap-6">
-        {(polesVisibles.length > 1 || categoriesVisibles.length > 1) && (
+        <div className="relative">
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-soft opacity-60" />
+          <input
+            type="search"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher un produit..."
+            className="w-full rounded-[11px] border border-line bg-surface py-3 pl-11 pr-11 text-base text-ink outline-none placeholder:text-ink-soft placeholder:opacity-60 focus:border-orange"
+          />
+          {recherche && (
+            <button
+              onClick={() => setRecherche("")}
+              title="Effacer la recherche"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-soft hover:text-orange"
+            >
+              <IconClose className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {recherche && produitsAffiches.length === 0 && (
+          <p className="rounded-card border border-line bg-surface p-5 text-center text-sm text-ink-soft opacity-70">
+            Aucun produit ne correspond à « {recherche} ».
+          </p>
+        )}
+
+        {!recherche && (polesVisibles.length > 1 || categoriesVisibles.length > 1) && (
           <nav className="sticky top-0 z-10 -mx-4 flex items-center gap-2 overflow-x-auto border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-card sm:border sm:px-3">
             {polesVisibles.length > 1 &&
               polesVisibles.map((pole) => (
@@ -244,7 +281,10 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
         })}
       </div>
 
-      <aside className="flex h-fit flex-col gap-4 rounded-card border border-line bg-surface p-5 lg:sticky lg:top-6">
+      <aside
+        ref={asideRef}
+        className="flex h-fit flex-col gap-4 rounded-card border border-line bg-surface p-5 lg:sticky lg:top-6"
+      >
         <h2 className="font-display text-lg font-extrabold text-ink">Panier</h2>
 
         <div className="flex gap-2">
@@ -362,6 +402,18 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
           </div>
         )}
       </aside>
+
+      {lignes.length > 0 && (
+        <button
+          onClick={() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="fixed inset-x-4 bottom-4 z-20 flex items-center justify-between rounded-[13px] bg-orange px-4 py-3.5 text-white shadow-lg lg:hidden"
+        >
+          <span className="text-sm font-bold">
+            {lignes.reduce((s, l) => s + l.quantite, 0)} article{lignes.reduce((s, l) => s + l.quantite, 0) > 1 ? "s" : ""}
+          </span>
+          <span className="font-display text-lg font-extrabold">{total.toLocaleString("fr-FR")} F</span>
+        </button>
+      )}
     </div>
   );
 }
