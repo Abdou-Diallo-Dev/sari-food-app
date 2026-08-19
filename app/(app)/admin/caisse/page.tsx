@@ -3,7 +3,6 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { IconWallet } from "@/components/icons";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
-import { RemiseAVerifier } from "./remise-a-verifier";
 
 const LABELS_MOYEN: Record<string, string> = {
   especes: "Espèces",
@@ -345,13 +344,6 @@ export default async function AdminCaissePage({
   }
   const { data: restaurants } = await restaurantsQuery;
 
-  const { data: remisesEnAttente } = await supabase
-    .from("remises_caisse")
-    .select("id, montant_remis, restaurant_id, utilisateurs(nom)")
-    .eq("statut", "en_attente")
-    .in("restaurant_id", (restaurants ?? []).map((r) => r.id))
-    .order("created_at", { ascending: true });
-
   const parRestaurant = await Promise.all(
     (restaurants ?? []).map(async (r) => {
       const { data: sessions } = await supabase
@@ -477,24 +469,6 @@ export default async function AdminCaissePage({
 
       {periode === "personnalise" && (
         <p className="text-sm font-bold text-ink-soft">{labelPlage(debutPerso, finPerso)}</p>
-      )}
-
-      {(remisesEnAttente ?? []).length > 0 && (
-        <section className="rounded-card border border-line bg-surface p-5">
-          <h2 className="mb-3 font-display text-lg font-extrabold text-orange">
-            Remises en attente de vérification
-          </h2>
-          <div className="flex flex-col gap-2">
-            {(remisesEnAttente ?? []).map((r) => (
-              <RemiseAVerifier
-                key={r.id}
-                remiseId={r.id}
-                caissiereNom={(r.utilisateurs as unknown as { nom: string } | null)?.nom ?? "—"}
-                montantRemis={Number(r.montant_remis)}
-              />
-            ))}
-          </div>
-        </section>
       )}
 
       {parRestaurant.length === 0 ? (

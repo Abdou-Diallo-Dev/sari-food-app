@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ouvrirSession, enregistrerDepense, cloturerSession } from "./actions";
+import { ouvrirSession, enregistrerDepense, cloturerSession, controlerCloture } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen, type MoyenPaiementCaisse } from "@/lib/caisse";
 import { IconWallet } from "@/components/icons";
 
@@ -28,6 +28,7 @@ const LABELS_CATEGORIE_DEPENSE: Record<string, string> = {
 type SessionPrecedente = {
   id: string;
   shift: "matin" | "soir";
+  statut: "en_attente_controle" | "cloturee";
   fond_initial_especes: number;
   fond_initial_wave: number;
   fond_initial_orange_money: number;
@@ -38,8 +39,20 @@ type SessionPrecedente = {
   ecart_wave: number | null;
   total_compte_orange_money: number | null;
   ecart_orange_money: number | null;
+  montant_garde_fonds_caisse: number | null;
+  montant_transfere_comptable: number | null;
   ouverte_at: string;
   cloturee_at: string | null;
+};
+
+type SessionAControler = {
+  id: string;
+  shift: "matin" | "soir";
+  total_compte_especes: number;
+  restaurant_id: string;
+  ouverte_at: string;
+  utilisateurs: { nom: string } | null;
+  restaurants: { nom: string } | null;
 };
 
 type TransactionSession = {
@@ -84,7 +97,12 @@ function SectionSessionsPrecedentes({
                     {s.shift === "matin" ? "Matin" : "Soir"}{" "}
                     <span className="font-normal text-ink-soft">
                       · {dateCourte(s.ouverte_at)}
-                      {s.cloturee_at && ` · clôturée à ${heure(s.cloturee_at)}`}
+                      {s.statut === "en_attente_controle" && (
+                        <span className="ml-1 rounded-full bg-orange/10 px-2 py-0.5 text-xs font-bold text-orange">
+                          En attente de contrôle
+                        </span>
+                      )}
+                      {s.statut === "cloturee" && s.cloturee_at && ` · clôturée à ${heure(s.cloturee_at)}`}
                     </span>
                   </span>
                   <span className="flex items-center gap-3">
@@ -160,6 +178,20 @@ function SectionSessionsPrecedentes({
                             </span>
                           </div>
                         )}
+                        {m.value === "especes" && s.statut === "cloturee" && s.montant_garde_fonds_caisse !== null && (
+                          <>
+                            <div className="flex justify-between text-xs text-ink-soft">
+                              <span>Gardé (fonds suivant)</span>
+                              <span>{Number(s.montant_garde_fonds_caisse).toLocaleString("fr-FR")} F</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold text-green">
+                              <span>Transféré comptable</span>
+                              <span>
+                                {Number(s.montant_transfere_comptable ?? 0).toLocaleString("fr-FR")} F
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -202,13 +234,78 @@ function SectionSessionsPrecedentes({
   );
 }
 
+function SectionSessionsAControler({ sessions }: { sessions: SessionAControler[] }) {
+  if (sessions.length === 0) return null;
+
+  return (
+    <section className="rounded-card border border-orange bg-orange/5 p-5">
+      <h2 className="mb-3 font-bold text-ink">Sessions à contrôler</h2>
+      <div className="flex flex-col gap-3">
+        {sessions.map((s) => (
+          <div key={s.id} className="rounded-[14px] border border-line bg-surface p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-bold text-ink">
+                {s.utilisateurs?.nom ?? "—"}
+                <span className="font-normal text-ink-soft">
+                  {" "}
+                  · {s.shift === "matin" ? "Matin" : "Soir"} · {dateCourte(s.ouverte_at)}
+                  {s.restaurants?.nom && ` · ${s.restaurants.nom}`}
+                </span>
+              </span>
+              <span className="font-bold text-ink">
+                Compté : {Number(s.total_compte_especes).toLocaleString("fr-FR")} F
+              </span>
+            </div>
+            <form action={controlerCloture} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="session_id" value={s.id} />
+              <input
+                type="number"
+                name="montant_garde_fonds_caisse"
+                required
+                min={0}
+                max={s.total_compte_especes}
+                step={1}
+                placeholder="Fonds gardé pour la session suivante (F)"
+                className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
+              <button
+                type="submit"
+                className="rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
+              >
+                Contrôler et transférer
+              </button>
+            </form>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default async function CaissePage() {
   const profile = await requireProfile();
   requireRole(profile, ["caissiere", "manager", "admin"]);
 
   const supabase = await createClient();
+  const estGestion = profile.role === "manager" || profile.role === "admin";
 
-  const [{ data: session }, { data: sessionsPrecedentes }] = await Promise.all([
+  async function chargerSessionsAControler(): Promise<SessionAControler[]> {
+    if (!estGestion) return [];
+    let q = supabase
+      .from("sessions_caisse")
+      .select(
+        "id, shift, total_compte_especes, restaurant_id, ouverte_at, utilisateurs(nom), restaurants(nom)",
+      )
+      .eq("statut", "en_attente_controle")
+      .order("ouverte_at", { ascending: true });
+    if (profile.role === "manager" && profile.restaurant_id) {
+      q = q.eq("restaurant_id", profile.restaurant_id);
+    }
+    const { data } = await q;
+    return (data ?? []) as unknown as SessionAControler[];
+  }
+
+  const [{ data: session }, { data: sessionsPrecedentes }, sessionsAControler] = await Promise.all([
     supabase
       .from("sessions_caisse")
       .select(
@@ -220,12 +317,13 @@ export default async function CaissePage() {
     supabase
       .from("sessions_caisse")
       .select(
-        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, ouverte_at, cloturee_at",
+        "id, shift, statut, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, montant_garde_fonds_caisse, montant_transfere_comptable, ouverte_at, cloturee_at",
       )
       .eq("caissiere_id", profile.id)
-      .eq("statut", "cloturee")
-      .order("cloturee_at", { ascending: false })
+      .in("statut", ["en_attente_controle", "cloturee"])
+      .order("ouverte_at", { ascending: false })
       .limit(15),
+    chargerSessionsAControler(),
   ]);
 
   const idsSessionsPrecedentes = (sessionsPrecedentes ?? []).map((s) => s.id);
@@ -246,15 +344,10 @@ export default async function CaissePage() {
   }
 
   if (!session) {
-    const { data: remiseDisponible } = await supabase
-      .from("remises_caisse")
-      .select("id, montant_remis, fond_nouvelle_session")
-      .eq("restaurant_id", profile.restaurant_id!)
-      .eq("statut", "verifiee")
-      .is("session_suivante_id", null)
-      .order("verifiee_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const { data: fondsDisponible } = profile.restaurant_id
+      ? await supabase.rpc("fonds_caisse_disponible", { p_restaurant_id: profile.restaurant_id })
+      : { data: 0 };
+    const fondEspeces = Number(fondsDisponible ?? 0);
 
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -278,28 +371,12 @@ export default async function CaissePage() {
             Solde initial par caisse
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {remiseDisponible ? (
-              <div
-                className="rounded-[9px] border border-green/40 bg-green/5 px-2.5 py-1.5 text-sm text-ink"
-                title="Fonds transmis par le manager à la clôture précédente"
-              >
-                Espèces
-                <div className="font-bold text-green">
-                  {Number(remiseDisponible.fond_nouvelle_session).toLocaleString("fr-FR")} F
-                </div>
-                <input type="hidden" name="remise_id" value={remiseDisponible.id} />
-              </div>
-            ) : (
-              <input
-                type="number"
-                name="fond_initial_especes"
-                defaultValue={0}
-                min={0}
-                step={1}
-                placeholder="Espèces"
-                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-              />
-            )}
+            <div className="flex flex-col justify-center rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft opacity-70">
+                Espèces (auto)
+              </span>
+              <span className="font-bold text-ink">{fondEspeces.toLocaleString("fr-FR")} F</span>
+            </div>
             <input
               type="number"
               name="fond_initial_wave"
@@ -319,12 +396,10 @@ export default async function CaissePage() {
               className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
             />
           </div>
-          {remiseDisponible && (
-            <p className="text-xs text-ink-soft opacity-70">
-              Le fonds espèces vient du transfert vérifié par le manager à la clôture précédente —
-              non modifiable ici.
-            </p>
-          )}
+          <p className="text-xs text-ink-soft opacity-70">
+            Le fonds espèces reprend automatiquement ce qui a été gardé lors de la dernière clôture
+            contrôlée de ce restaurant.
+          </p>
 
           <button
             type="submit"
@@ -333,6 +408,8 @@ export default async function CaissePage() {
             Ouvrir
           </button>
         </form>
+
+        {estGestion && <SectionSessionsAControler sessions={sessionsAControler} />}
 
         <SectionSessionsPrecedentes
           sessions={sessionsPrecedentes ?? []}
@@ -549,10 +626,11 @@ export default async function CaissePage() {
       </section>
 
       <section className="rounded-card border border-line bg-surface p-5">
-        <h2 className="mb-3 font-bold text-ink">Clôturer la caisse</h2>
+        <h2 className="mb-3 font-bold text-ink">Remettre la caisse</h2>
         <p className="mb-2 text-xs text-ink-soft opacity-70">
-          Déclarez le montant détenu pour chaque moyen de paiement — le manager vérifiera
-          l&apos;espèces et fixera le fonds de la prochaine session.
+          Déclarez le montant détenu pour chaque moyen de paiement — un manager devra ensuite
+          contrôler l&apos;espèces et fixer le fonds de la prochaine session avant que la caisse ne
+          soit définitivement clôturée.
         </p>
         <form action={cloturerSession} className="flex flex-col gap-2">
           <input type="hidden" name="session_id" value={session.id} />
@@ -589,10 +667,12 @@ export default async function CaissePage() {
             type="submit"
             className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
           >
-            Clôturer
+            Remettre au manager
           </button>
         </form>
       </section>
+
+      {estGestion && <SectionSessionsAControler sessions={sessionsAControler} />}
 
       <SectionSessionsPrecedentes
         sessions={sessionsPrecedentes ?? []}

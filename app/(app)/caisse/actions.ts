@@ -12,7 +12,6 @@ export async function ouvrirSession(formData: FormData) {
   if (!profile.restaurant_id) return;
 
   const shift = String(formData.get("shift") ?? "");
-  const remiseId = String(formData.get("remise_id") ?? "").trim();
   const fond_initial_wave = Number(formData.get("fond_initial_wave") || 0);
   const fond_initial_orange_money = Number(formData.get("fond_initial_orange_money") || 0);
 
@@ -28,34 +27,13 @@ export async function ouvrirSession(formData: FormData) {
 
   const supabase = await createClient();
 
-  // Le fonds espèces vient soit d'une remise déjà vérifiée par le manager
-  // (transfert réel, verrouillé, cf. verifierRemise), soit d'une saisie
-  // manuelle en l'absence de remise disponible (toute première session, ou
-  // aucun transfert encore vérifié).
-  let fond_initial_especes = Number(formData.get("fond_initial_especes") || 0);
-  let remise: { id: string; fond_nouvelle_session: number } | null = null;
-
-  if (remiseId) {
-    const { data } = await supabase
-      .from("remises_caisse")
-      .select("id, fond_nouvelle_session, restaurant_id, statut, session_suivante_id")
-      .eq("id", remiseId)
-      .maybeSingle();
-
-    if (
-      !data ||
-      data.statut !== "verifiee" ||
-      data.session_suivante_id !== null ||
-      data.restaurant_id !== profile.restaurant_id
-    ) {
-      throw new Error("Ce fonds de caisse n'est plus disponible. Rechargez la page.");
-    }
-
-    remise = { id: data.id, fond_nouvelle_session: Number(data.fond_nouvelle_session) };
-    fond_initial_especes = remise.fond_nouvelle_session;
-  }
-
-  if (!Number.isFinite(fond_initial_especes) || fond_initial_especes < 0) return;
+  // Le fonds espèces n'est plus une saisie libre : il reprend automatiquement
+  // ce que le manager a gardé lors de la dernière session contrôlée de ce
+  // restaurant (0 si aucune n'a encore été contrôlée).
+  const { data: fondsDisponible } = await supabase.rpc("fonds_caisse_disponible", {
+    p_restaurant_id: profile.restaurant_id,
+  });
+  const fond_initial_especes = Number(fondsDisponible ?? 0);
 
   const { data: sessionOuverte } = await supabase
     .from("sessions_caisse")
@@ -65,27 +43,15 @@ export async function ouvrirSession(formData: FormData) {
     .maybeSingle();
   if (sessionOuverte) return;
 
-  const { data: nouvelleSession, error } = await supabase
-    .from("sessions_caisse")
-    .insert({
-      restaurant_id: profile.restaurant_id,
-      caissiere_id: profile.id,
-      shift,
-      fond_initial: fond_initial_especes + fond_initial_wave + fond_initial_orange_money,
-      fond_initial_especes,
-      fond_initial_wave,
-      fond_initial_orange_money,
-    })
-    .select("id")
-    .single();
-
-  if (!error && nouvelleSession && remise) {
-    await supabase
-      .from("remises_caisse")
-      .update({ session_suivante_id: nouvelleSession.id })
-      .eq("id", remise.id)
-      .is("session_suivante_id", null);
-  }
+  await supabase.from("sessions_caisse").insert({
+    restaurant_id: profile.restaurant_id,
+    caissiere_id: profile.id,
+    shift,
+    fond_initial: fond_initial_especes + fond_initial_wave + fond_initial_orange_money,
+    fond_initial_especes,
+    fond_initial_wave,
+    fond_initial_orange_money,
+  });
 
   revalidatePath("/caisse");
 }
@@ -196,8 +162,7 @@ export async function cloturerSession(formData: FormData) {
       ecart_wave,
       total_compte_orange_money,
       ecart_orange_money,
-      statut: "cloturee",
-      cloturee_at: new Date().toISOString(),
+      statut: "en_attente_controle",
     })
     .eq("id", sessionId)
     .eq("statut", "ouverte")
@@ -207,17 +172,6 @@ export async function cloturerSession(formData: FormData) {
     throw new Error("Cette session de caisse est déjà clôturée.");
   }
 
-  // Chaîne de transfert espèces (caissière -> manager -> comptable) :
-  // amorcée ici par une remise "en_attente", vérifiée ensuite par le
-  // manager (verifierRemise). Wave/Orange Money n'ont pas de remise
-  // physique à modéliser (soldes numériques déjà chez le comptable).
-  await supabase.from("remises_caisse").insert({
-    restaurant_id: session.restaurant_id,
-    session_cloturee_id: sessionId,
-    caissiere_id: profile.id,
-    montant_remis: total_compte_especes,
-  });
-
   await journaliser(supabase, {
     restaurantId: session.restaurant_id,
     utilisateurId: profile.id,
@@ -226,7 +180,7 @@ export async function cloturerSession(formData: FormData) {
     entiteId: sessionId,
     avant: { statut: "ouverte" },
     apres: {
-      statut: "cloturee",
+      statut: "en_attente_controle",
       total_theorique,
       total_compte,
       ecart_especes,
@@ -235,12 +189,13 @@ export async function cloturerSession(formData: FormData) {
     },
   });
 
-  // Wave/Orange Money : soldes numériques, crédités en caisse globale dès la
-  // clôture comme avant. Espèces : PAS crédité ici — l'argent physique n'est
-  // réellement "entré" dans la caisse globale qu'une fois le manager passé
-  // (verifierRemise ci-dessous), qui crédite le montant réellement
-  // transféré au comptable, pas le total brut compté par la caissière (une
-  // partie reste en fonds de caisse pour la session suivante).
+  // Wave/Orange Money : pas de remise physique possible (déjà sur un compte
+  // mobile money de l'entreprise), donc versés en caisse globale dès cette
+  // étape, au théorique — ce sont des soldes numériques qui ne se
+  // "comptent" pas comme l'espèces (le compté déclaré ci-dessus ne sert
+  // qu'au rapprochement/écart, pas au montant crédité). Les espèces
+  // attendent le contrôle manager (controlerCloture) pour ne pas compter
+  // deux fois le fonds recyclé vers la session suivante.
   const entrees = [
     { sous_caisse: "wave" as const, montant: theoriqueWave },
     { sous_caisse: "orange_money" as const, montant: theoriqueOrangeMoney },
@@ -268,56 +223,58 @@ export async function cloturerSession(formData: FormData) {
   revalidatePath("/caisse-globale");
 }
 
-export async function verifierRemise(formData: FormData) {
+export async function controlerCloture(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["manager", "admin"]);
-  if (!profile.restaurant_id) return;
 
-  const remiseId = String(formData.get("remise_id") ?? "");
-  const fondNouvelleSession = Number(formData.get("fond_nouvelle_session"));
-  if (!remiseId || !Number.isFinite(fondNouvelleSession) || fondNouvelleSession < 0) return;
+  const sessionId = String(formData.get("session_id") ?? "");
+  const montant_garde_fonds_caisse = Number(formData.get("montant_garde_fonds_caisse"));
+  if (!sessionId || !Number.isFinite(montant_garde_fonds_caisse) || montant_garde_fonds_caisse < 0) {
+    throw new Error("Montant de fonds de caisse invalide.");
+  }
 
   const supabase = await createClient();
 
-  const { data: remise } = await supabase
-    .from("remises_caisse")
-    .select("montant_remis, restaurant_id, statut, session_cloturee_id")
-    .eq("id", remiseId)
+  const { data: session } = await supabase
+    .from("sessions_caisse")
+    .select("total_compte_especes, restaurant_id, statut")
+    .eq("id", sessionId)
     .single();
-
-  if (!remise || remise.statut !== "en_attente") return;
-  if (fondNouvelleSession > Number(remise.montant_remis)) {
-    throw new Error("Le fonds pour la nouvelle session ne peut pas dépasser le montant remis.");
+  if (!session) return;
+  if (session.statut !== "en_attente_controle") {
+    throw new Error("Cette session n'est pas en attente de contrôle.");
+  }
+  if (montant_garde_fonds_caisse > Number(session.total_compte_especes)) {
+    throw new Error("Le fonds gardé ne peut pas dépasser le montant compté en espèces.");
   }
 
-  const montant_transfere_comptable = Number(remise.montant_remis) - fondNouvelleSession;
+  const montant_transfere_comptable = Number(session.total_compte_especes) - montant_garde_fonds_caisse;
 
-  await supabase
-    .from("remises_caisse")
+  const { data: controlee, error } = await supabase
+    .from("sessions_caisse")
     .update({
-      statut: "verifiee",
-      manager_id: profile.id,
-      fond_nouvelle_session: fondNouvelleSession,
-      montant_transfere_comptable,
-      verifiee_at: new Date().toISOString(),
+      statut: "cloturee",
+      montant_garde_fonds_caisse,
+      cloturee_at: new Date().toISOString(),
     })
-    .eq("id", remiseId)
-    .eq("statut", "en_attente");
+    .eq("id", sessionId)
+    .eq("statut", "en_attente_controle")
+    .select("id");
+
+  if (error || !controlee || controlee.length === 0) {
+    throw new Error("Cette session a déjà été contrôlée.");
+  }
 
   await journaliser(supabase, {
-    restaurantId: remise.restaurant_id,
+    restaurantId: session.restaurant_id,
     utilisateurId: profile.id,
-    action: "verification_remise",
-    entite: "remises_caisse",
-    entiteId: remiseId,
-    avant: { statut: "en_attente", montant_remis: remise.montant_remis },
-    apres: { statut: "verifiee", fond_nouvelle_session: fondNouvelleSession, montant_transfere_comptable },
+    action: "controle_cloture_caisse",
+    entite: "sessions_caisse",
+    entiteId: sessionId,
+    avant: { statut: "en_attente_controle" },
+    apres: { statut: "cloturee", montant_garde_fonds_caisse, montant_transfere_comptable },
   });
 
-  // C'est ici, et seulement ici, que l'espèces entre réellement dans la
-  // caisse globale — le montant que le manager a choisi de transférer au
-  // comptable, jamais le total brut compté par la caissière (une partie
-  // reste en fonds pour la session suivante, cf. cloturerSession).
   if (montant_transfere_comptable > 0) {
     try {
       await supabase.from("mouvements_caisse_globale").insert({
@@ -325,15 +282,16 @@ export async function verifierRemise(formData: FormData) {
         categorie: "cloture_session",
         sous_caisse: "especes",
         montant: montant_transfere_comptable,
-        session_id: remise.session_cloturee_id,
-        restaurant_id: remise.restaurant_id,
+        session_id: sessionId,
+        restaurant_id: session.restaurant_id,
         utilisateur_id: profile.id,
       });
     } catch {
-      // remontée en caisse globale best-effort : ne jamais casser la vérification
+      // remontée en caisse globale best-effort : ne jamais casser le contrôle
     }
   }
 
+  revalidatePath("/caisse");
   revalidatePath("/admin/caisse");
   revalidatePath("/caisse-globale");
 }
