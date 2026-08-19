@@ -235,9 +235,37 @@ export async function cloturerSession(formData: FormData) {
     },
   });
 
+  // Wave/Orange Money : soldes numériques, crédités en caisse globale dès la
+  // clôture comme avant. Espèces : PAS crédité ici — l'argent physique n'est
+  // réellement "entré" dans la caisse globale qu'une fois le manager passé
+  // (verifierRemise ci-dessous), qui crédite le montant réellement
+  // transféré au comptable, pas le total brut compté par la caissière (une
+  // partie reste en fonds de caisse pour la session suivante).
+  const entrees = [
+    { sous_caisse: "wave" as const, montant: theoriqueWave },
+    { sous_caisse: "orange_money" as const, montant: theoriqueOrangeMoney },
+  ].filter((e) => e.montant > 0);
+  if (entrees.length > 0) {
+    try {
+      await supabase.from("mouvements_caisse_globale").insert(
+        entrees.map((e) => ({
+          type: "entree" as const,
+          categorie: "cloture_session" as const,
+          sous_caisse: e.sous_caisse,
+          montant: e.montant,
+          session_id: sessionId,
+          restaurant_id: session.restaurant_id,
+          utilisateur_id: profile.id,
+        })),
+      );
+    } catch {
+      // remontée en caisse globale best-effort : ne jamais casser la clôture
+    }
+  }
+
   revalidatePath("/caisse");
   revalidatePath("/admin/caisse");
-  revalidatePath("/comptable");
+  revalidatePath("/caisse-globale");
 }
 
 export async function verifierRemise(formData: FormData) {
@@ -253,7 +281,7 @@ export async function verifierRemise(formData: FormData) {
 
   const { data: remise } = await supabase
     .from("remises_caisse")
-    .select("montant_remis, restaurant_id, statut")
+    .select("montant_remis, restaurant_id, statut, session_cloturee_id")
     .eq("id", remiseId)
     .single();
 
@@ -286,6 +314,26 @@ export async function verifierRemise(formData: FormData) {
     apres: { statut: "verifiee", fond_nouvelle_session: fondNouvelleSession, montant_transfere_comptable },
   });
 
+  // C'est ici, et seulement ici, que l'espèces entre réellement dans la
+  // caisse globale — le montant que le manager a choisi de transférer au
+  // comptable, jamais le total brut compté par la caissière (une partie
+  // reste en fonds pour la session suivante, cf. cloturerSession).
+  if (montant_transfere_comptable > 0) {
+    try {
+      await supabase.from("mouvements_caisse_globale").insert({
+        type: "entree",
+        categorie: "cloture_session",
+        sous_caisse: "especes",
+        montant: montant_transfere_comptable,
+        session_id: remise.session_cloturee_id,
+        restaurant_id: remise.restaurant_id,
+        utilisateur_id: profile.id,
+      });
+    } catch {
+      // remontée en caisse globale best-effort : ne jamais casser la vérification
+    }
+  }
+
   revalidatePath("/admin/caisse");
-  revalidatePath("/comptable");
+  revalidatePath("/caisse-globale");
 }
