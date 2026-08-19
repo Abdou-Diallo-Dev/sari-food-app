@@ -244,6 +244,30 @@ export default async function CaisseGlobalePage({
   const { data } = await requete;
   const mouvements = (data ?? []) as unknown as Mouvement[];
 
+  // Solde avant/après par ligne : jamais stocké, recalculé à la lecture (même
+  // principe que soldes_caisse_globale()). On part du solde réel juste avant
+  // le début de la période affichée, puis on déroule les mouvements de la
+  // période dans l'ordre chronologique pour obtenir un solde ligne par ligne.
+  const { data: mouvementsAvant } = await supabase
+    .from("mouvements_caisse_globale")
+    .select("type, sous_caisse, montant")
+    .lt("created_at", debut.toISOString());
+
+  const soldeCourantParSousCaisse = new Map<string, number>();
+  for (const m of (mouvementsAvant ?? []) as { type: "entree" | "sortie"; sous_caisse: string; montant: number }[]) {
+    const delta = m.type === "entree" ? Number(m.montant) : -Number(m.montant);
+    soldeCourantParSousCaisse.set(m.sous_caisse, (soldeCourantParSousCaisse.get(m.sous_caisse) ?? 0) + delta);
+  }
+
+  const soldesParLigne = new Map<string, { avant: number; apres: number }>();
+  for (const m of [...mouvements].reverse()) {
+    const avant = soldeCourantParSousCaisse.get(m.sous_caisse) ?? 0;
+    const delta = m.type === "entree" ? Number(m.montant) : -Number(m.montant);
+    const apres = avant + delta;
+    soldeCourantParSousCaisse.set(m.sous_caisse, apres);
+    soldesParLigne.set(m.id, { avant, apres });
+  }
+
   const mouvementsParJour = new Map<string, Mouvement[]>();
   for (const m of mouvements) {
     const cle = jourCle(m.created_at);
@@ -479,26 +503,38 @@ export default async function CaisseGlobalePage({
               <div key={cle}>
                 <h3 className="mb-2 text-sm font-bold capitalize text-ink-soft">{jourLabel(cle)}</h3>
                 <ul className="flex flex-col gap-1.5">
-                  {mouvementsParJour.get(cle)!.map((m) => (
-                    <li
-                      key={m.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-line bg-paper px-3 py-2 text-sm"
-                    >
-                      <span className="text-ink-soft">
-                        {heure(m.created_at)} · <span className="font-bold text-ink">{LABELS_CATEGORIE[m.categorie] ?? m.categorie}</span>{" "}
-                        · {LABELS_SOUS_CAISSE[m.sous_caisse]}
-                        {m.libelle && ` · ${m.libelle}`}
-                        {provenance(m) && ` · ${provenance(m)}`}
-                        {m.restaurants?.nom && ` · ${m.restaurants.nom}`}
-                        {" · "}
-                        {m.utilisateurs?.nom ?? "—"}
-                      </span>
-                      <span className={`font-bold ${m.type === "entree" ? "text-green" : "text-red-600"}`}>
-                        {m.type === "entree" ? "+" : "−"}
-                        {Number(m.montant).toLocaleString("fr-FR")} F
-                      </span>
-                    </li>
-                  ))}
+                  {mouvementsParJour.get(cle)!.map((m) => {
+                    const soldeLigne = soldesParLigne.get(m.id);
+                    return (
+                      <li
+                        key={m.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-line bg-paper px-3 py-2 text-sm"
+                      >
+                        <span className="text-ink-soft">
+                          {heure(m.created_at)} · <span className="font-bold text-ink">{LABELS_CATEGORIE[m.categorie] ?? m.categorie}</span>{" "}
+                          · {LABELS_SOUS_CAISSE[m.sous_caisse]}
+                          {m.libelle && ` · ${m.libelle}`}
+                          {provenance(m) && ` · ${provenance(m)}`}
+                          {m.restaurants?.nom && ` · ${m.restaurants.nom}`}
+                          {" · "}
+                          {m.utilisateurs?.nom ?? "—"}
+                          {" · réf. "}
+                          <span className="font-mono">{m.id.slice(0, 8)}</span>
+                        </span>
+                        <span className="flex items-center gap-2">
+                          {soldeLigne && (
+                            <span className="text-xs text-ink-soft opacity-70">
+                              {soldeLigne.avant.toLocaleString("fr-FR")} → {soldeLigne.apres.toLocaleString("fr-FR")} F
+                            </span>
+                          )}
+                          <span className={`font-bold ${m.type === "entree" ? "text-green" : "text-red-600"}`}>
+                            {m.type === "entree" ? "+" : "−"}
+                            {Number(m.montant).toLocaleString("fr-FR")} F
+                          </span>
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

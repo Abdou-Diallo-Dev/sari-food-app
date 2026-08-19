@@ -12,14 +12,11 @@ export async function ouvrirSession(formData: FormData) {
   if (!profile.restaurant_id) return;
 
   const shift = String(formData.get("shift") ?? "");
-  const fond_initial_especes = Number(formData.get("fond_initial_especes") || 0);
   const fond_initial_wave = Number(formData.get("fond_initial_wave") || 0);
   const fond_initial_orange_money = Number(formData.get("fond_initial_orange_money") || 0);
 
   if (
     !["matin", "soir"].includes(shift) ||
-    !Number.isFinite(fond_initial_especes) ||
-    fond_initial_especes < 0 ||
     !Number.isFinite(fond_initial_wave) ||
     fond_initial_wave < 0 ||
     !Number.isFinite(fond_initial_orange_money) ||
@@ -29,6 +26,14 @@ export async function ouvrirSession(formData: FormData) {
   }
 
   const supabase = await createClient();
+
+  // Le fonds espèces n'est plus une saisie libre : il reprend automatiquement
+  // ce que le manager a gardé lors de la dernière session contrôlée de ce
+  // restaurant (0 si aucune n'a encore été contrôlée).
+  const { data: fondsDisponible } = await supabase.rpc("fonds_caisse_disponible", {
+    p_restaurant_id: profile.restaurant_id,
+  });
+  const fond_initial_especes = Number(fondsDisponible ?? 0);
 
   const { data: sessionOuverte } = await supabase
     .from("sessions_caisse")
@@ -140,8 +145,7 @@ export async function cloturerSession(formData: FormData) {
       ecart: ecart_especes,
       total_compte_especes,
       ecart_especes,
-      statut: "cloturee",
-      cloturee_at: new Date().toISOString(),
+      statut: "en_attente_controle",
     })
     .eq("id", sessionId)
     .eq("statut", "ouverte")
@@ -158,11 +162,15 @@ export async function cloturerSession(formData: FormData) {
     entite: "sessions_caisse",
     entiteId: sessionId,
     avant: { statut: "ouverte" },
-    apres: { statut: "cloturee", total_theorique, total_compte, ecart: ecart_especes },
+    apres: { statut: "en_attente_controle", total_theorique, total_compte, ecart: ecart_especes },
   });
 
+  // Wave/Orange Money : pas de remise physique possible (déjà sur un compte
+  // mobile money de l'entreprise), donc versés en caisse globale dès cette
+  // étape, comme avant. Les espèces attendent le contrôle manager
+  // (controlerCloture) pour ne pas compter deux fois le fonds recyclé vers
+  // la session suivante.
   const entrees = [
-    { sous_caisse: "especes" as const, montant: total_compte_especes },
     { sous_caisse: "wave" as const, montant: theoriqueWave },
     { sous_caisse: "orange_money" as const, montant: theoriqueOrangeMoney },
   ].filter((e) => e.montant > 0);
@@ -181,6 +189,79 @@ export async function cloturerSession(formData: FormData) {
       );
     } catch {
       // remontée en caisse globale best-effort : ne jamais casser la clôture
+    }
+  }
+
+  revalidatePath("/caisse");
+  revalidatePath("/admin/caisse");
+  revalidatePath("/caisse-globale");
+}
+
+export async function controlerCloture(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, ["manager", "admin"]);
+
+  const sessionId = String(formData.get("session_id") ?? "");
+  const montant_garde_fonds_caisse = Number(formData.get("montant_garde_fonds_caisse"));
+  if (!sessionId || !Number.isFinite(montant_garde_fonds_caisse) || montant_garde_fonds_caisse < 0) {
+    throw new Error("Montant de fonds de caisse invalide.");
+  }
+
+  const supabase = await createClient();
+
+  const { data: session } = await supabase
+    .from("sessions_caisse")
+    .select("total_compte_especes, restaurant_id, statut")
+    .eq("id", sessionId)
+    .single();
+  if (!session) return;
+  if (session.statut !== "en_attente_controle") {
+    throw new Error("Cette session n'est pas en attente de contrôle.");
+  }
+  if (montant_garde_fonds_caisse > Number(session.total_compte_especes)) {
+    throw new Error("Le fonds gardé ne peut pas dépasser le montant compté en espèces.");
+  }
+
+  const montant_transfere_comptable = Number(session.total_compte_especes) - montant_garde_fonds_caisse;
+
+  const { data: controlee, error } = await supabase
+    .from("sessions_caisse")
+    .update({
+      statut: "cloturee",
+      montant_garde_fonds_caisse,
+      cloturee_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId)
+    .eq("statut", "en_attente_controle")
+    .select("id");
+
+  if (error || !controlee || controlee.length === 0) {
+    throw new Error("Cette session a déjà été contrôlée.");
+  }
+
+  await journaliser(supabase, {
+    restaurantId: session.restaurant_id,
+    utilisateurId: profile.id,
+    action: "controle_cloture_caisse",
+    entite: "sessions_caisse",
+    entiteId: sessionId,
+    avant: { statut: "en_attente_controle" },
+    apres: { statut: "cloturee", montant_garde_fonds_caisse, montant_transfere_comptable },
+  });
+
+  if (montant_transfere_comptable > 0) {
+    try {
+      await supabase.from("mouvements_caisse_globale").insert({
+        type: "entree",
+        categorie: "cloture_session",
+        sous_caisse: "especes",
+        montant: montant_transfere_comptable,
+        session_id: sessionId,
+        restaurant_id: session.restaurant_id,
+        utilisateur_id: profile.id,
+      });
+    } catch {
+      // remontée en caisse globale best-effort : ne jamais casser le contrôle
     }
   }
 
