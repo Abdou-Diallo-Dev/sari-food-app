@@ -58,7 +58,7 @@ type Session = {
   ecart_wave: number | null;
   total_compte_orange_money: number | null;
   ecart_orange_money: number | null;
-  statut: "ouverte" | "cloturee";
+  statut: "ouverte" | "en_attente_controle" | "cloturee";
   ouverte_at: string;
   cloturee_at: string | null;
   utilisateurs: { nom: string } | null;
@@ -189,12 +189,20 @@ function SessionCard({ s }: { s: Session }) {
         <span className="flex items-center gap-3">
           <span
             className={`rounded-[7px] px-2 py-0.5 text-xs font-bold ${
-              s.statut === "ouverte" ? "bg-green/15 text-green" : "bg-surface text-ink-soft"
+              s.statut === "ouverte"
+                ? "bg-green/15 text-green"
+                : s.statut === "en_attente_controle"
+                  ? "bg-orange/15 text-orange"
+                  : "bg-surface text-ink-soft"
             }`}
           >
-            {s.statut === "ouverte" ? "Ouverte" : "Clôturée"}
+            {s.statut === "ouverte"
+              ? "Ouverte"
+              : s.statut === "en_attente_controle"
+                ? "En attente de contrôle"
+                : "Clôturée"}
           </span>
-          {s.statut === "cloturee" && s.ecart_especes !== null && (
+          {s.statut !== "ouverte" && s.ecart_especes !== null && (
             <span
               className={`text-xs font-bold ${
                 Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"
@@ -264,7 +272,7 @@ function SessionCard({ s }: { s: Session }) {
                 <span>Théorique</span>
                 <span>{theorique.toLocaleString("fr-FR")} F</span>
               </div>
-              {m.value === "especes" && s.statut === "cloturee" && (
+              {m.value === "especes" && s.statut !== "ouverte" && (
                 <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
                   <span className="text-ink-soft">Compté / Écart</span>
                   <span className={Number(s.ecart_especes) === 0 ? "text-ink" : "text-red-600"}>
