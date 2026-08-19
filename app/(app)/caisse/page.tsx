@@ -551,8 +551,8 @@ export default async function CaissePage() {
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-3 font-bold text-ink">Clôturer la caisse</h2>
         <p className="mb-2 text-xs text-ink-soft opacity-70">
-          Déclarez le montant détenu pour chaque moyen de paiement — le manager vérifiera l'espèces
-          et fixera le fonds de la prochaine session.
+          Déclarez le montant détenu pour chaque moyen de paiement — le manager vérifiera
+          l&apos;espèces et fixera le fonds de la prochaine session.
         </p>
         <form action={cloturerSession} className="flex flex-col gap-2">
           <input type="hidden" name="session_id" value={session.id} />
