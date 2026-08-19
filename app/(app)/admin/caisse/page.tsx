@@ -354,7 +354,7 @@ export default async function AdminCaissePage({
 
   const parRestaurant = await Promise.all(
     (restaurants ?? []).map(async (r) => {
-      const { data: sessions } = await supabase
+      const { data: sessions, error: sessionsError } = await supabase
         .from("sessions_caisse")
         .select(
           "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
@@ -388,7 +388,7 @@ export default async function AdminCaissePage({
         transactions: transactionsParSession.get(s.id) ?? [],
       }));
 
-      return { restaurant: r, sessions: sessionsAvecTransactions };
+      return { restaurant: r, sessions: sessionsAvecTransactions, erreur: sessionsError?.message ?? null };
     }),
   );
 
@@ -483,12 +483,16 @@ export default async function AdminCaissePage({
         <p className="text-ink-soft opacity-70">Aucun restaurant à afficher.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {parRestaurant.map(({ restaurant, sessions }) => {
+          {parRestaurant.map(({ restaurant, sessions, erreur }) => {
             if (periode === "jour") {
               return (
                 <section key={restaurant.id} className="rounded-card border border-line bg-surface p-5">
                   <h2 className="mb-4 font-display text-lg font-extrabold text-ink">{restaurant.nom}</h2>
-                  {sessions.length === 0 ? (
+                  {erreur ? (
+                    <p className="text-sm font-bold text-red-600">
+                      Impossible de charger les sessions de caisse : {erreur}
+                    </p>
+                  ) : sessions.length === 0 ? (
                     <p className="text-sm text-ink-soft opacity-70">
                       Aucune session de caisse {estPeriodeCourante ? "aujourd'hui" : "ce jour-là"}.
                     </p>
@@ -529,7 +533,11 @@ export default async function AdminCaissePage({
               <section key={restaurant.id} className="rounded-card border border-line bg-surface p-5">
                 <h2 className="mb-4 font-display text-lg font-extrabold text-ink">{restaurant.nom}</h2>
 
-                {sessions.length === 0 ? (
+                {erreur ? (
+                  <p className="text-sm font-bold text-red-600">
+                    Impossible de charger les sessions de caisse : {erreur}
+                  </p>
+                ) : sessions.length === 0 ? (
                   <p className="text-sm text-ink-soft opacity-70">
                     Aucune session de caisse sur cette période.
                   </p>
