@@ -158,7 +158,7 @@ export default async function RapportsPage({
     }),
     supabase
       .from("sessions_caisse")
-      .select("id, shift, ecart, cloturee_at, utilisateurs(nom)")
+      .select("id, shift, ecart, cloturee_at, utilisateurs!caissiere_id(nom)")
       .eq("restaurant_id", restaurant.id)
       .not("ecart", "is", null)
       .gte("cloturee_at", debut.toISOString())
