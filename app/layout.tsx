@@ -27,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body>
+      <body className="overflow-x-hidden">
         {children}
         <ServiceWorkerRegister />
       </body>
