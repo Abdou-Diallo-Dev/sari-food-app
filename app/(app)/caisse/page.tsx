@@ -294,7 +294,7 @@ export default async function CaissePage() {
     let q = supabase
       .from("sessions_caisse")
       .select(
-        "id, shift, total_compte_especes, restaurant_id, ouverte_at, utilisateurs(nom), restaurants(nom)",
+        "id, shift, total_compte_especes, restaurant_id, ouverte_at, utilisateurs!caissiere_id(nom), restaurants(nom)",
       )
       .eq("statut", "en_attente_controle")
       .order("ouverte_at", { ascending: true });

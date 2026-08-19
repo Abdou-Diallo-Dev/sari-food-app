@@ -357,7 +357,7 @@ export default async function AdminCaissePage({
       const { data: sessions, error: sessionsError } = await supabase
         .from("sessions_caisse")
         .select(
-          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
+          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, statut, ouverte_at, cloturee_at, utilisateurs!caissiere_id(nom)",
         )
         .eq("restaurant_id", r.id)
         .gte("ouverte_at", debut.toISOString())

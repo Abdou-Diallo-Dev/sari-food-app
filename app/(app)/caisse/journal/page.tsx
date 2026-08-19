@@ -59,7 +59,7 @@ export default async function JournalCaissePage({
   let requete = supabase
     .from("transactions_caisse")
     .select(
-      "id, type, montant, moyen_paiement, categorie_depense, libelle, created_at, sessions_caisse!inner(shift, restaurant_id, restaurants(nom), utilisateurs(nom))",
+      "id, type, montant, moyen_paiement, categorie_depense, libelle, created_at, sessions_caisse!inner(shift, restaurant_id, restaurants(nom), utilisateurs!caissiere_id(nom))",
     )
     .eq("type", type === "depenses" ? "depense" : "encaissement")
     .gte("created_at", debut.toISOString())
