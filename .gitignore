@@ -24,3 +24,4 @@ next-env.d.ts
 
 # qodo (outil tiers, non lié au projet)
 .qodo/
+.vercel
