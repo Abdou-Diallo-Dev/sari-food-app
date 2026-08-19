@@ -12,6 +12,7 @@ import {
   IconClipboard,
   IconGauge,
   IconTruck,
+  IconTarget,
 } from "@/components/icons";
 
 export const ROLES_CUISINE = [
@@ -69,6 +70,7 @@ export function navItemsPour(role: string): NavItem[] {
     items.push({ href: "/approvisionnement", label: "Approvisionnement", icon: IconAlert });
   }
   if (isGestion || role === "pdg") {
+    items.push({ href: "/admin/planning", label: "Planning production", icon: IconTarget });
     items.push({ href: "/admin/produits", label: "Catalogue produits", icon: IconBook });
     items.push({ href: "/admin/livraison", label: "Zones de livraison", icon: IconTruck });
   }

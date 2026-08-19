@@ -54,6 +54,10 @@ type Session = {
   total_compte_especes: number | null;
   ecart: number | null;
   ecart_especes: number | null;
+  total_compte_wave: number | null;
+  ecart_wave: number | null;
+  total_compte_orange_money: number | null;
+  ecart_orange_money: number | null;
   statut: "ouverte" | "cloturee";
   ouverte_at: string;
   cloturee_at: string | null;
@@ -345,7 +349,7 @@ export default async function AdminCaissePage({
       const { data: sessions } = await supabase
         .from("sessions_caisse")
         .select(
-          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
+          "id, shift, fond_initial, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_theorique, total_compte, total_compte_especes, ecart, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, statut, ouverte_at, cloturee_at, utilisateurs(nom)",
         )
         .eq("restaurant_id", r.id)
         .gte("ouverte_at", debut.toISOString())

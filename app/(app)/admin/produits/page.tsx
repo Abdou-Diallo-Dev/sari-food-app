@@ -10,7 +10,7 @@ import {
   toggleProduitActif,
 } from "./actions";
 import { PhotoPicker } from "./photo-picker";
-import { IconBook, IconCheck, IconTrash, IconPlus, IconImage } from "@/components/icons";
+import { IconBook, IconCheck, IconTrash, IconImage } from "@/components/icons";
 
 const POLES = [
   { value: "patisserie", label: "Pâtisserie" },

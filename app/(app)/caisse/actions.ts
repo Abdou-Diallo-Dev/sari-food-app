@@ -104,7 +104,19 @@ export async function cloturerSession(formData: FormData) {
 
   const sessionId = String(formData.get("session_id") ?? "");
   const total_compte_especes = Number(formData.get("total_compte_especes"));
-  if (!sessionId || !Number.isFinite(total_compte_especes) || total_compte_especes < 0) return;
+  const total_compte_wave = Number(formData.get("total_compte_wave"));
+  const total_compte_orange_money = Number(formData.get("total_compte_orange_money"));
+  if (
+    !sessionId ||
+    !Number.isFinite(total_compte_especes) ||
+    total_compte_especes < 0 ||
+    !Number.isFinite(total_compte_wave) ||
+    total_compte_wave < 0 ||
+    !Number.isFinite(total_compte_orange_money) ||
+    total_compte_orange_money < 0
+  ) {
+    return;
+  }
 
   const supabase = await createClient();
 
@@ -134,8 +146,9 @@ export async function cloturerSession(formData: FormData) {
 
   const total_theorique = theoriqueEspeces + theoriqueWave + theoriqueOrangeMoney;
   const ecart_especes = total_compte_especes - theoriqueEspeces;
-  // Wave/Orange Money : pas de comptage physique possible, on retient le théorique.
-  const total_compte = total_compte_especes + theoriqueWave + theoriqueOrangeMoney;
+  const ecart_wave = total_compte_wave - theoriqueWave;
+  const ecart_orange_money = total_compte_orange_money - theoriqueOrangeMoney;
+  const total_compte = total_compte_especes + total_compte_wave + total_compte_orange_money;
 
   const { data: cloture, error } = await supabase
     .from("sessions_caisse")
@@ -145,6 +158,10 @@ export async function cloturerSession(formData: FormData) {
       ecart: ecart_especes,
       total_compte_especes,
       ecart_especes,
+      total_compte_wave,
+      ecart_wave,
+      total_compte_orange_money,
+      ecart_orange_money,
       statut: "en_attente_controle",
     })
     .eq("id", sessionId)
@@ -162,14 +179,23 @@ export async function cloturerSession(formData: FormData) {
     entite: "sessions_caisse",
     entiteId: sessionId,
     avant: { statut: "ouverte" },
-    apres: { statut: "en_attente_controle", total_theorique, total_compte, ecart: ecart_especes },
+    apres: {
+      statut: "en_attente_controle",
+      total_theorique,
+      total_compte,
+      ecart_especes,
+      ecart_wave,
+      ecart_orange_money,
+    },
   });
 
   // Wave/Orange Money : pas de remise physique possible (déjà sur un compte
   // mobile money de l'entreprise), donc versés en caisse globale dès cette
-  // étape, comme avant. Les espèces attendent le contrôle manager
-  // (controlerCloture) pour ne pas compter deux fois le fonds recyclé vers
-  // la session suivante.
+  // étape, au théorique — ce sont des soldes numériques qui ne se
+  // "comptent" pas comme l'espèces (le compté déclaré ci-dessus ne sert
+  // qu'au rapprochement/écart, pas au montant crédité). Les espèces
+  // attendent le contrôle manager (controlerCloture) pour ne pas compter
+  // deux fois le fonds recyclé vers la session suivante.
   const entrees = [
     { sous_caisse: "wave" as const, montant: theoriqueWave },
     { sous_caisse: "orange_money" as const, montant: theoriqueOrangeMoney },

@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createCommande, type PanierItem } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
-import { IconImage } from "@/components/icons";
+import { IconImage, IconSearch, IconClose } from "@/components/icons";
 
 export type ProduitPos = {
   id: string;
@@ -31,18 +31,66 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const [derniereCommandeId, setDerniereCommandeId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [recherche, setRecherche] = useState("");
+
+  // Filtre par nom uniquement : simple et prévisible pour une caissière
+  // pressée. Les pôles/catégories sans résultat disparaissent plutôt que de
+  // rester affichés vides.
+  const produitsAffiches = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    return terme ? produits.filter((p) => p.nom.toLowerCase().includes(terme)) : produits;
+  }, [produits, recherche]);
+
   const produitsParPole = useMemo(() => {
     const groupes: Record<string, Record<string, ProduitPos[]>> = {
       patisserie: {},
       boulangerie: {},
       fastfood: {},
     };
-    for (const p of produits) {
+    for (const p of produitsAffiches) {
       groupes[p.pole][p.categorie] ??= [];
       groupes[p.pole][p.categorie].push(p);
     }
     return groupes;
+  }, [produitsAffiches]);
+
+  const polesVisibles = POLES.filter((pole) => Object.keys(produitsParPole[pole.value]).length > 0);
+  const categoriesVisibles = polesVisibles.flatMap((pole) =>
+    Object.keys(produitsParPole[pole.value]).map((nom) => ({ pole: pole.value, nom, cle: `${pole.value}::${nom}` })),
+  );
+
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const categorieRefs = useRef<Record<string, HTMLElement | null>>({});
+  const asideRef = useRef<HTMLElement | null>(null);
+  const [poleActif, setPoleActif] = useState<string>(polesVisibles[0]?.value ?? POLES[0].value);
+
+  // Barre d'onglets figée : surligne le pôle actuellement visible pendant
+  // le scroll (même pattern que le menu client, sari-foood-client).
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entrees) => {
+        const visible = entrees.find((e) => e.isIntersecting);
+        if (visible) setPoleActif(visible.target.getAttribute("data-pole") ?? "");
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+
+    for (const pole of polesVisibles) {
+      const el = sectionRefs.current[pole.value];
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sections stables tant que produits ne change pas
   }, [produits]);
+
+  function allerAuPole(pole: string) {
+    sectionRefs.current[pole]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function allerALaCategorie(cle: string) {
+    categorieRefs.current[cle]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   const lignes = Object.values(panier);
   const total = lignes.reduce((s, l) => s + l.prix_unitaire * l.quantite, 0);
@@ -93,21 +141,95 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="flex flex-col gap-6">
+    <div
+      className={`grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] ${lignes.length > 0 ? "pb-20 lg:pb-0" : ""}`}
+    >
+      <div className="flex min-w-0 flex-col gap-6">
+        <div className="relative">
+          <IconSearch className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-soft opacity-60" />
+          <input
+            type="search"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher un produit..."
+            className="w-full rounded-[11px] border border-line bg-surface py-3 pl-11 pr-11 text-base text-ink outline-none placeholder:text-ink-soft placeholder:opacity-60 focus:border-orange"
+          />
+          {recherche && (
+            <button
+              onClick={() => setRecherche("")}
+              title="Effacer la recherche"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-ink-soft hover:text-orange"
+            >
+              <IconClose className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {recherche && produitsAffiches.length === 0 && (
+          <p className="rounded-card border border-line bg-surface p-5 text-center text-sm text-ink-soft opacity-70">
+            Aucun produit ne correspond à « {recherche} ».
+          </p>
+        )}
+
+        {!recherche && (polesVisibles.length > 1 || categoriesVisibles.length > 1) && (
+          <nav className="sticky top-0 z-10 -mx-4 flex max-w-[100vw] items-center gap-2 overflow-x-auto border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:mx-0 sm:max-w-full sm:rounded-card sm:border sm:px-3">
+            {polesVisibles.length > 1 &&
+              polesVisibles.map((pole) => (
+                <button
+                  key={pole.value}
+                  onClick={() => allerAuPole(pole.value)}
+                  className={`shrink-0 rounded-[9px] px-3 py-1.5 text-sm font-bold transition ${
+                    poleActif === pole.value
+                      ? "bg-orange text-white"
+                      : "text-ink-soft hover:bg-surface hover:text-ink"
+                  }`}
+                >
+                  {pole.label}
+                </button>
+              ))}
+
+            {polesVisibles.length > 1 && categoriesVisibles.length > 0 && (
+              <span className="h-5 w-px shrink-0 bg-line" />
+            )}
+
+            {categoriesVisibles.map((cat) => (
+              <button
+                key={cat.cle}
+                onClick={() => allerALaCategorie(cat.cle)}
+                className="shrink-0 rounded-[9px] border border-line px-2.5 py-1 text-xs font-bold text-ink-soft transition hover:border-orange hover:text-orange"
+              >
+                {cat.nom}
+              </button>
+            ))}
+          </nav>
+        )}
+
         {POLES.map((pole) => {
           const categories = produitsParPole[pole.value];
           const nomsCategories = Object.keys(categories);
           if (nomsCategories.length === 0) return null;
 
           return (
-            <section key={pole.value} className="rounded-card border border-line bg-surface p-5">
+            <section
+              key={pole.value}
+              ref={(el) => {
+                sectionRefs.current[pole.value] = el;
+              }}
+              data-pole={pole.value}
+              className="scroll-mt-16 rounded-card border border-line bg-surface p-5"
+            >
               <h2 className="mb-4 font-display text-lg font-extrabold text-orange">
                 {pole.label}
               </h2>
               <div className="flex flex-col gap-4">
                 {nomsCategories.map((nomCategorie) => (
-                  <div key={nomCategorie}>
+                  <div
+                    key={nomCategorie}
+                    ref={(el) => {
+                      categorieRefs.current[`${pole.value}::${nomCategorie}`] = el;
+                    }}
+                    className="scroll-mt-16"
+                  >
                     <h3 className="mb-2 text-sm font-bold text-ink-soft">{nomCategorie}</h3>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {categories[nomCategorie].map((p) => (
@@ -161,7 +283,10 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
         })}
       </div>
 
-      <aside className="flex h-fit flex-col gap-4 rounded-card border border-line bg-surface p-5 lg:sticky lg:top-6">
+      <aside
+        ref={asideRef}
+        className="flex h-fit flex-col gap-4 rounded-card border border-line bg-surface p-5 lg:sticky lg:top-6"
+      >
         <h2 className="font-display text-lg font-extrabold text-ink">Panier</h2>
 
         <div className="flex gap-2">
@@ -279,6 +404,18 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
           </div>
         )}
       </aside>
+
+      {lignes.length > 0 && (
+        <button
+          onClick={() => asideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="fixed inset-x-4 bottom-4 z-20 flex items-center justify-between rounded-[13px] bg-orange px-4 py-3.5 text-white shadow-lg lg:hidden"
+        >
+          <span className="text-sm font-bold">
+            {lignes.reduce((s, l) => s + l.quantite, 0)} article{lignes.reduce((s, l) => s + l.quantite, 0) > 1 ? "s" : ""}
+          </span>
+          <span className="font-display text-lg font-extrabold">{total.toLocaleString("fr-FR")} F</span>
+        </button>
+      )}
     </div>
   );
 }

@@ -35,6 +35,10 @@ type SessionPrecedente = {
   total_compte: number | null;
   total_compte_especes: number | null;
   ecart_especes: number | null;
+  total_compte_wave: number | null;
+  ecart_wave: number | null;
+  total_compte_orange_money: number | null;
+  ecart_orange_money: number | null;
   montant_garde_fonds_caisse: number | null;
   montant_transfere_comptable: number | null;
   ouverte_at: string;
@@ -130,6 +134,18 @@ function SectionSessionsPrecedentes({
                           : Number(s.fond_initial_orange_money);
                     const { encaisse, depense } = totauxParMoyen(txns, m.value);
                     const theorique = fondInitial + encaisse - depense;
+                    const compte =
+                      m.value === "especes"
+                        ? s.total_compte_especes
+                        : m.value === "wave"
+                          ? s.total_compte_wave
+                          : s.total_compte_orange_money;
+                    const ecart =
+                      m.value === "especes"
+                        ? s.ecart_especes
+                        : m.value === "wave"
+                          ? s.ecart_wave
+                          : s.ecart_orange_money;
                     return (
                       <div
                         key={m.value}
@@ -152,11 +168,13 @@ function SectionSessionsPrecedentes({
                           <span>Théorique</span>
                           <span>{theorique.toLocaleString("fr-FR")} F</span>
                         </div>
-                        {m.value === "especes" && s.total_compte_especes !== null && (
+                        {compte !== null && (
                           <div className="mt-1 flex justify-between border-t border-line pt-1 text-xs font-bold">
                             <span className="text-ink-soft">Compté</span>
-                            <span className="text-ink">
-                              {Number(s.total_compte_especes).toLocaleString("fr-FR")} F
+                            <span className={Number(ecart) === 0 ? "text-ink" : "text-red-600"}>
+                              {Number(compte).toLocaleString("fr-FR")} F
+                              {Number(ecart) !== 0 &&
+                                ` (${Number(ecart) >= 0 ? "+" : ""}${Number(ecart).toLocaleString("fr-FR")})`}
                             </span>
                           </div>
                         )}
@@ -299,7 +317,7 @@ export default async function CaissePage() {
     supabase
       .from("sessions_caisse")
       .select(
-        "id, shift, statut, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, montant_garde_fonds_caisse, montant_transfere_comptable, ouverte_at, cloturee_at",
+        "id, shift, statut, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, total_compte, total_compte_especes, ecart_especes, total_compte_wave, ecart_wave, total_compte_orange_money, ecart_orange_money, montant_garde_fonds_caisse, montant_transfere_comptable, ouverte_at, cloturee_at",
       )
       .eq("caissiere_id", profile.id)
       .in("statut", ["en_attente_controle", "cloturee"])
@@ -610,24 +628,44 @@ export default async function CaissePage() {
       <section className="rounded-card border border-line bg-surface p-5">
         <h2 className="mb-3 font-bold text-ink">Remettre la caisse</h2>
         <p className="mb-2 text-xs text-ink-soft opacity-70">
-          Seules les espèces se comptent physiquement. Wave et Orange Money sont retenus au
-          théorique calculé à partir des encaissements enregistrés. Un manager devra ensuite
-          contrôler votre remise avant que la caisse ne soit définitivement clôturée.
+          Déclarez le montant détenu pour chaque moyen de paiement — un manager devra ensuite
+          contrôler l&apos;espèces et fixer le fonds de la prochaine session avant que la caisse ne
+          soit définitivement clôturée.
         </p>
-        <form action={cloturerSession} className="flex flex-wrap items-center gap-2">
+        <form action={cloturerSession} className="flex flex-col gap-2">
           <input type="hidden" name="session_id" value={session.id} />
-          <input
-            type="number"
-            name="total_compte_especes"
-            required
-            min={0}
-            step={1}
-            placeholder="Montant compté en espèces (F)"
-            className="min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-          />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              type="number"
+              name="total_compte_especes"
+              required
+              min={0}
+              step={1}
+              placeholder="Espèces comptées (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="total_compte_wave"
+              required
+              min={0}
+              step={1}
+              placeholder="Wave détenu (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+            <input
+              type="number"
+              name="total_compte_orange_money"
+              required
+              min={0}
+              step={1}
+              placeholder="Orange Money détenu (F)"
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+            />
+          </div>
           <button
             type="submit"
-            className="rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
+            className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
           >
             Remettre au manager
           </button>
