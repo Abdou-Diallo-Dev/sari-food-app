@@ -168,7 +168,10 @@ export async function cloturerSession(formData: FormData) {
     .eq("statut", "ouverte")
     .select("id");
 
-  if (error || !cloture || cloture.length === 0) {
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!cloture || cloture.length === 0) {
     throw new Error("Cette session de caisse est déjà clôturée.");
   }
 
@@ -261,7 +264,10 @@ export async function controlerCloture(formData: FormData): Promise<void> {
     .eq("statut", "en_attente_controle")
     .select("id");
 
-  if (error || !controlee || controlee.length === 0) {
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!controlee || controlee.length === 0) {
     throw new Error("Cette session a déjà été contrôlée.");
   }
 
