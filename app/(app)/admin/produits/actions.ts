@@ -45,7 +45,7 @@ async function televerserPhoto(photo: File, restaurantId: string): Promise<strin
   const admin = createAdminClient();
   const { error } = await admin.storage
     .from(BUCKET_PRODUITS)
-    .upload(chemin, buffer, { contentType: "image/jpeg", upsert: false });
+    .upload(chemin, buffer, { contentType: "image/jpeg", upsert: false, cacheControl: "31536000" });
 
   if (error) return null;
 

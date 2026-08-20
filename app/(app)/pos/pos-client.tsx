@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Image from "next/image";
 import { createCommande, type PanierItem } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
 import { IconImage, IconSearch, IconClose } from "@/components/icons";
@@ -245,13 +246,13 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                         >
                           <div className="relative aspect-square w-full bg-line/20">
                             {p.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                              <Image
                                 src={p.imageUrl}
                                 alt={p.nom}
+                                fill
+                                sizes="(max-width: 640px) 50vw, 33vw"
                                 loading="lazy"
-                                decoding="async"
-                                className="h-full w-full object-cover"
+                                className="object-cover"
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-ink-soft opacity-30">

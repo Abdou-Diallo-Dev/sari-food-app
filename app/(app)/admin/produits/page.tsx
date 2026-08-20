@@ -9,6 +9,7 @@ import {
   deleteProduit,
   toggleProduitActif,
 } from "./actions";
+import Image from "next/image";
 import { PhotoPicker } from "./photo-picker";
 import { IconBook, IconCheck, IconTrash, IconImage } from "@/components/icons";
 
@@ -124,15 +125,15 @@ export default async function ProduitsPage() {
                         key={p.id}
                         className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3 text-center"
                       >
-                        <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[12px] bg-paper text-ink-soft">
+                        <div className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[12px] bg-paper text-ink-soft">
                           {p.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <Image
                               src={p.image_url}
                               alt={p.nom}
+                              fill
+                              sizes="72px"
                               loading="lazy"
-                              decoding="async"
-                              className="h-full w-full object-cover"
+                              className="object-cover"
                             />
                           ) : (
                             <IconImage className="h-6 w-6 opacity-40" />

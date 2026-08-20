@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "5mb",
     },
   },
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
+    ],
+    minimumCacheTTL: 31536000,
+  },
 };
 
 export default nextConfig;
