@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createCommande, type PanierItem } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
 import { IconImage, IconSearch, IconClose } from "@/components/icons";
@@ -22,6 +23,18 @@ const POLES = [
 ] as const;
 
 export function PosClient({ produits }: { produits: ProduitPos[] }) {
+  const router = useRouter();
+
+  // Filet de sécurité pour les commandes en ligne à valider : le rafraîchissement
+  // normal passe par NotificationSound (bip + router.refresh() sur notification
+  // Realtime), mais un onglet en arrière-plan ou une notif manquée laisserait la
+  // caissière face à une liste figée sans le savoir. Ce polling garantit qu'une
+  // nouvelle commande en ligne apparaît au plus tard 15s après son paiement.
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), 15000);
+    return () => clearInterval(id);
+  }, [router]);
+
   const [panier, setPanier] = useState<Record<string, PanierItem>>({});
   const [canal, setCanal] = useState<"sur_place" | "emporter" | "livraison">("sur_place");
   const [moyenPaiement, setMoyenPaiement] = useState<MoyenPaiementCaisse>("especes");
@@ -63,6 +76,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
   const categorieRefs = useRef<Record<string, HTMLElement | null>>({});
   const asideRef = useRef<HTMLElement | null>(null);
   const [poleActif, setPoleActif] = useState<string>(polesVisibles[0]?.value ?? POLES[0].value);
+  const [categorieActive, setCategorieActive] = useState<string>(categoriesVisibles[0]?.cle ?? "");
 
   // Barre d'onglets figée : surligne le pôle actuellement visible pendant
   // le scroll (même pattern que le menu client, sari-foood-client).
@@ -77,6 +91,27 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
 
     for (const pole of polesVisibles) {
       const el = sectionRefs.current[pole.value];
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sections stables tant que produits ne change pas
+  }, [produits]);
+
+  // Même principe pour les catégories : sans ça, seuls les 3 pôles se
+  // surlignaient pendant le scroll, les catégories restaient toutes dans le
+  // même état visuel quelle que soit la position réelle dans la page.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entrees) => {
+        const visible = entrees.find((e) => e.isIntersecting);
+        if (visible) setCategorieActive(visible.target.getAttribute("data-categorie") ?? "");
+      },
+      { rootMargin: "-15% 0px -70% 0px" },
+    );
+
+    for (const cat of categoriesVisibles) {
+      const el = categorieRefs.current[cat.cle];
       if (el) observer.observe(el);
     }
 
@@ -196,7 +231,11 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
               <button
                 key={cat.cle}
                 onClick={() => allerALaCategorie(cat.cle)}
-                className="shrink-0 rounded-[9px] border border-line px-2.5 py-1 text-xs font-bold text-ink-soft transition hover:border-orange hover:text-orange"
+                className={`shrink-0 rounded-[9px] border px-2.5 py-1 text-xs font-bold transition ${
+                  categorieActive === cat.cle
+                    ? "border-orange bg-orange/10 text-orange"
+                    : "border-line text-ink-soft hover:border-orange hover:text-orange"
+                }`}
               >
                 {cat.nom}
               </button>
@@ -228,6 +267,7 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
                     ref={(el) => {
                       categorieRefs.current[`${pole.value}::${nomCategorie}`] = el;
                     }}
+                    data-categorie={`${pole.value}::${nomCategorie}`}
                     className="scroll-mt-16"
                   >
                     <h3 className="mb-2 text-sm font-bold text-ink-soft">{nomCategorie}</h3>
