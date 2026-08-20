@@ -52,6 +52,33 @@ export async function createRestaurant(formData: FormData): Promise<void> {
   revalidatePath("/admin/utilisateurs");
 }
 
+export async function deleteRestaurant(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin"]);
+
+  const id = String(formData.get("id") ?? "");
+
+  try {
+    if (!id) throw new Error("Restaurant introuvable.");
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("restaurants").delete().eq("id", id);
+
+    if (error) {
+      if (error.code === "23503") {
+        throw new Error(
+          "Impossible de supprimer : ce restaurant a des données liées (utilisateurs, produits, commandes, sessions de caisse...). Réaffectez ou supprimez-les d'abord.",
+        );
+      }
+      throw new Error("Impossible de supprimer le restaurant : " + error.message);
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
+  }
+
+  revalidatePath("/admin/utilisateurs");
+}
+
 export async function createUtilisateur(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);

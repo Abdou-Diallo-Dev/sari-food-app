@@ -2,6 +2,7 @@ import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
   createRestaurant,
+  deleteRestaurant,
   createUtilisateur,
   updateUtilisateur,
   toggleActifUtilisateur,
@@ -11,6 +12,7 @@ import {
 } from "./actions";
 import { RolePoleSelect } from "@/components/RolePoleSelect";
 import { SupprimerUtilisateurButton } from "@/components/SupprimerUtilisateurButton";
+import { SupprimerRestaurantButton } from "@/components/SupprimerRestaurantButton";
 import type { RoleUtilisateur } from "@/lib/roles";
 
 type Utilisateur = {
@@ -87,9 +89,13 @@ export default async function UtilisateursPage({
             restaurantsList.map((r) => (
               <div
                 key={r.id}
-                className="rounded-[10px] border border-line bg-paper px-3 py-2 text-sm font-bold text-ink"
+                className="flex items-center justify-between gap-2 rounded-[10px] border border-line bg-paper px-3 py-2 text-sm font-bold text-ink"
               >
                 {r.nom}
+                <form action={deleteRestaurant}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <SupprimerRestaurantButton nom={r.nom} />
+                </form>
               </div>
             ))
           )}
