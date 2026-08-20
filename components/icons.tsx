@@ -27,6 +27,14 @@ export function IconChart({ className }: IconProps) {
   );
 }
 
+export function IconChevronDown({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function IconCart({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
