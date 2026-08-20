@@ -4,20 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { IconAlert } from "@/components/icons";
 import { navItemsPour, ROLES_CUISINE } from "@/lib/nav";
-
-const LABELS_ROLE: Record<string, string> = {
-  admin: "Admin",
-  pdg: "PDG",
-  manager: "Manager",
-  comptable: "Comptable",
-  chef_patisserie: "Chef Pâtisserie",
-  chef_boulangerie: "Chef Boulangerie",
-  chef_fastfood: "Chef Fast-Food",
-  equipier_patisserie: "Équipier Pâtisserie",
-  equipier_boulangerie: "Équipier Boulangerie",
-  equipier_fastfood: "Équipier Fast-Food",
-  caissiere: "Caissière",
-};
+import { LABELS_ROLE } from "@/lib/roles";
 
 const LABELS_POLE: Record<string, string> = {
   patisserie: "Pâtisserie",

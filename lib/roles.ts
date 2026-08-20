@@ -17,15 +17,15 @@ export type RoleUtilisateur = (typeof ROLES)[number];
 export const LABELS_ROLE: Record<RoleUtilisateur, string> = {
   admin: "Admin",
   pdg: "PDG",
-  manager: "Manager",
+  manager: "Manager général",
   comptable: "Comptable",
-  chef_patisserie: "Chef Pâtisserie",
-  chef_boulangerie: "Chef Boulangerie",
-  chef_fastfood: "Chef Fast-Food",
+  chef_patisserie: "Chef pâtissier",
+  chef_boulangerie: "Chef boulanger",
+  chef_fastfood: "Chef cuisinier",
   equipier_patisserie: "Équipier Pâtisserie",
   equipier_boulangerie: "Équipier Boulangerie",
   equipier_fastfood: "Équipier Fast-Food",
-  caissiere: "Caissière",
+  caissiere: "Caisse",
 };
 
 // admin/pdg/manager/comptable/caissiere supervisent ou opèrent sans être

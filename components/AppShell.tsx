@@ -11,20 +11,7 @@ import { NotificationSound } from "@/components/NotificationSound";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { IconHome, IconLogOut, IconMenu, IconClose, IconArrowLeft } from "@/components/icons";
 import { navItemsPour } from "@/lib/nav";
-
-const LABELS_ROLE: Record<string, string> = {
-  admin: "Admin",
-  pdg: "PDG",
-  manager: "Manager",
-  comptable: "Comptable",
-  chef_patisserie: "Chef Pâtisserie",
-  chef_boulangerie: "Chef Boulangerie",
-  chef_fastfood: "Chef Fast-Food",
-  equipier_patisserie: "Équipier Pâtisserie",
-  equipier_boulangerie: "Équipier Boulangerie",
-  equipier_fastfood: "Équipier Fast-Food",
-  caissiere: "Caissière",
-};
+import { LABELS_ROLE } from "@/lib/roles";
 
 export function AppShell({
   profile,

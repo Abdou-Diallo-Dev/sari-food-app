@@ -152,7 +152,7 @@ export default async function UtilisateursPage({
             defaultValue=""
             className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
           >
-            <option value="">Multi-site (admin/PDG)</option>
+            <option value="">Multi-site (admin / manager général / PDG)</option>
             {restaurantsList.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.nom}
