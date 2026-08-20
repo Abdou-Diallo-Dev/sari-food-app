@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { resolveRestaurantId } from "@/lib/restaurant-actif";
 import { journaliser } from "@/lib/audit";
 
 const ROLES_MOUVEMENT = [
@@ -16,7 +17,8 @@ const ROLES_MOUVEMENT = [
 export async function createIngredient(formData: FormData) {
   const profile = await requireProfile();
   requireRole(profile, ["admin", "manager"]);
-  if (!profile.restaurant_id) return;
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!restaurantId) return;
 
   const nom = String(formData.get("nom") ?? "").trim();
   const categorie = String(formData.get("categorie") ?? "");
@@ -42,7 +44,7 @@ export async function createIngredient(formData: FormData) {
 
   const supabase = await createClient();
   await supabase.from("ingredients").insert({
-    restaurant_id: profile.restaurant_id,
+    restaurant_id: restaurantId,
     nom,
     categorie,
     unite,
@@ -154,7 +156,8 @@ export async function deleteIngredient(formData: FormData) {
 export async function enregistrerMouvement(formData: FormData) {
   const profile = await requireProfile();
   requireRole(profile, [...ROLES_MOUVEMENT]);
-  if (!profile.restaurant_id) return;
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!restaurantId) return;
 
   const ingredientId = String(formData.get("ingredient_id") ?? "");
   const type = String(formData.get("type") ?? "");
@@ -176,7 +179,7 @@ export async function enregistrerMouvement(formData: FormData) {
   const { data: mouvement, error } = await supabase
     .from("mouvements_stock")
     .insert({
-      restaurant_id: profile.restaurant_id,
+      restaurant_id: restaurantId,
       ingredient_id: ingredientId,
       type,
       quantite,
@@ -198,7 +201,7 @@ export async function enregistrerMouvement(formData: FormData) {
   await supabase.from("ingredients").update({ stock_actuel: nouveauStock }).eq("id", ingredientId);
 
   await journaliser(supabase, {
-    restaurantId: profile.restaurant_id,
+    restaurantId,
     utilisateurId: profile.id,
     action: "mouvement_stock_" + type,
     entite: "mouvements_stock",
@@ -215,7 +218,8 @@ const ROLES_CHEF = ["chef_patisserie", "chef_boulangerie", "chef_fastfood"] as c
 export async function declencherDemande(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, [...ROLES_CHEF, "manager", "admin"]);
-  if (!profile.restaurant_id) return;
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!restaurantId) return;
 
   const ingredient_id = String(formData.get("ingredient_id") ?? "");
   const quantite_demandee = Number(formData.get("quantite_demandee"));
@@ -228,7 +232,7 @@ export async function declencherDemande(formData: FormData): Promise<void> {
   const { data, error } = await supabase
     .from("demandes_approvisionnement")
     .insert({
-      restaurant_id: profile.restaurant_id,
+      restaurant_id: restaurantId,
       ingredient_id,
       chef_id: profile.id,
       quantite_demandee,

@@ -1,5 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveRestaurantId, listerRestaurants } from "@/lib/restaurant-actif";
+import { RestaurantSwitcher } from "@/components/RestaurantSwitcher";
 import { PosClient, type ProduitPos } from "./pos-client";
 import { CommandesEnLigneAValider, type CommandeAValider } from "./commandes-en-ligne";
 import { LABELS_STATUT, LABELS_CANAL } from "@/lib/commandes";
@@ -10,10 +12,18 @@ export default async function PosPage() {
   requireRole(profile, ["admin", "manager", "caissiere", "pdg"]);
   const lectureSeule = profile.role === "pdg";
 
-  if (!profile.restaurant_id) {
+  const estMultiSite = !profile.restaurant_id;
+  const restaurantId = await resolveRestaurantId(profile);
+  const restaurants = estMultiSite ? await listerRestaurants() : [];
+  const switcher = estMultiSite ? (
+    <RestaurantSwitcher restaurants={restaurants} restaurantActifId={restaurantId} chemin="/pos" />
+  ) : null;
+
+  if (!restaurantId) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <p className="text-ink-soft">Aucun restaurant associé à ce compte.</p>
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        {switcher}
+        <p className="text-ink-soft">Choisissez un restaurant pour prendre des commandes.</p>
       </div>
     );
   }
@@ -23,13 +33,13 @@ export default async function PosPage() {
     supabase
       .from("produits")
       .select("id, nom, prix, actif, categorie_id, image_url, categories_produits(nom, pole)")
-      .eq("restaurant_id", profile.restaurant_id)
+      .eq("restaurant_id", restaurantId)
       .eq("actif", true)
       .order("nom"),
     supabase
       .from("production_jour")
       .select("produit_id, quantite_restante")
-      .eq("restaurant_id", profile.restaurant_id)
+      .eq("restaurant_id", restaurantId)
       .eq("jour", new Date().toISOString().slice(0, 10)),
   ]);
 
@@ -56,7 +66,7 @@ export default async function PosPage() {
   const { data: commandesJour } = await supabase
     .from("commandes")
     .select("id, numero, canal, statut, total, created_at")
-    .eq("restaurant_id", profile.restaurant_id)
+    .eq("restaurant_id", restaurantId)
     .gte("created_at", debutJournee.toISOString())
     .order("created_at", { ascending: false });
 
@@ -65,7 +75,7 @@ export default async function PosPage() {
     .select(
       "id, numero, total, created_at, client_nom, client_telephone, adresse_livraison, lignes_commande(produit_id, quantite, produits(nom))",
     )
-    .eq("restaurant_id", profile.restaurant_id)
+    .eq("restaurant_id", restaurantId)
     .eq("canal", "en_ligne")
     .is("confirmation_caisse", null)
     .neq("statut", "annulee")
@@ -99,6 +109,8 @@ export default async function PosPage() {
         <IconCart className="h-6 w-6 text-orange" />
         Prise de commande
       </h1>
+
+      {switcher}
 
       {!lectureSeule && commandesEnLigne.length > 0 && (
         <CommandesEnLigneAValider commandes={commandesEnLigne} />

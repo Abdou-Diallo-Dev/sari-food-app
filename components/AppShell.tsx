@@ -53,7 +53,7 @@ export function AppShell({
 
       <aside
         className={`z-20 flex w-full flex-col overflow-y-auto border-r border-line bg-surface px-4 py-6 lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 ${
-          menuOuvert ? "block" : "hidden"
+          menuOuvert ? "fixed inset-0 block" : "hidden"
         } lg:block`}
       >
         <div className="mb-6 hidden items-center justify-between px-2 lg:flex">

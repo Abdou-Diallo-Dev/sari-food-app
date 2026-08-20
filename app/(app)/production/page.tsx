@@ -1,5 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveRestaurantId, listerRestaurants } from "@/lib/restaurant-actif";
+import { RestaurantSwitcher } from "@/components/RestaurantSwitcher";
 import { definirProduction } from "./actions";
 import { IconChefHat } from "@/components/icons";
 
@@ -52,10 +54,18 @@ export default async function ProductionPage() {
     profile.role === "admin" || profile.role === "manager" || (ROLES_CHEF as readonly string[]).includes(profile.role);
   const peutChoisirPole = profile.role === "admin" || profile.role === "manager";
 
-  if (!profile.restaurant_id) {
+  const estMultiSite = !profile.restaurant_id;
+  const restaurantId = await resolveRestaurantId(profile);
+  const restaurants = estMultiSite ? await listerRestaurants() : [];
+  const switcher = estMultiSite ? (
+    <RestaurantSwitcher restaurants={restaurants} restaurantActifId={restaurantId} chemin="/production" />
+  ) : null;
+
+  if (!restaurantId) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <p className="text-ink-soft">Aucun restaurant associé à ce compte.</p>
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        {switcher}
+        <p className="text-ink-soft">Choisissez un restaurant pour voir sa production.</p>
       </div>
     );
   }
@@ -68,23 +78,23 @@ export default async function ProductionPage() {
       supabase
         .from("produits")
         .select("id, nom, categorie_id, categories_produits(pole)")
-        .eq("restaurant_id", profile.restaurant_id)
+        .eq("restaurant_id", restaurantId)
         .eq("actif", true)
         .order("nom"),
       supabase
         .from("production_jour")
         .select("produit_id, quantite_produite, quantite_restante")
-        .eq("restaurant_id", profile.restaurant_id)
+        .eq("restaurant_id", restaurantId)
         .eq("jour", aujourdhui),
       supabase
         .from("production_jour_contributions")
         .select("produit_id, pole, quantite_produite")
-        .eq("restaurant_id", profile.restaurant_id)
+        .eq("restaurant_id", restaurantId)
         .eq("jour", aujourdhui),
       supabase
         .from("objectifs_production")
         .select("produit_id, pole")
-        .eq("restaurant_id", profile.restaurant_id)
+        .eq("restaurant_id", restaurantId)
         .eq("jour", aujourdhui),
     ]);
 
@@ -124,6 +134,8 @@ export default async function ProductionPage() {
         <IconChefHat className="h-6 w-6 text-orange" />
         Production du jour
       </h1>
+
+      {switcher}
 
       {polesAffiches.map((pole) => {
         // Vue chef : un seul pôle affiché de toute façon, mais la liste peut

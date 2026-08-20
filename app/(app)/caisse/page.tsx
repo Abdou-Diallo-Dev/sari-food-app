@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveRestaurantId, listerRestaurants } from "@/lib/restaurant-actif";
+import { RestaurantSwitcher } from "@/components/RestaurantSwitcher";
 import { ouvrirSession, enregistrerDepense, cloturerSession, controlerCloture } from "./actions";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen, type MoyenPaiementCaisse } from "@/lib/caisse";
 import { IconWallet } from "@/components/icons";
@@ -289,6 +291,13 @@ export default async function CaissePage() {
   const supabase = await createClient();
   const estGestion = profile.role === "manager" || profile.role === "admin";
 
+  const estMultiSite = !profile.restaurant_id;
+  const restaurantId = await resolveRestaurantId(profile);
+  const restaurants = estMultiSite ? await listerRestaurants() : [];
+  const switcher = estMultiSite ? (
+    <RestaurantSwitcher restaurants={restaurants} restaurantActifId={restaurantId} chemin="/caisse" />
+  ) : null;
+
   async function chargerSessionsAControler(): Promise<SessionAControler[]> {
     if (!estGestion) return [];
     let q = supabase
@@ -309,7 +318,7 @@ export default async function CaissePage() {
     supabase
       .from("sessions_caisse")
       .select(
-        "id, shift, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, ouverte_at",
+        "id, shift, restaurant_id, fond_initial_especes, fond_initial_wave, fond_initial_orange_money, ouverte_at",
       )
       .eq("caissiere_id", profile.id)
       .eq("statut", "ouverte")
@@ -344,11 +353,6 @@ export default async function CaissePage() {
   }
 
   if (!session) {
-    const { data: fondsDisponible } = profile.restaurant_id
-      ? await supabase.rpc("fonds_caisse_disponible", { p_restaurant_id: profile.restaurant_id })
-      : { data: 0 };
-    const fondEspeces = Number(fondsDisponible ?? 0);
-
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <h1 className="flex items-center gap-2.5 font-display text-2xl font-extrabold text-ink">
@@ -356,58 +360,62 @@ export default async function CaissePage() {
           Caisse
         </h1>
 
-        <form action={ouvrirSession} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
-          <h2 className="font-bold text-ink">Ouvrir la caisse</h2>
-          <select
-            name="shift"
-            required
-            className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
-          >
-            <option value="matin">Matin</option>
-            <option value="soir">Soir</option>
-          </select>
+        {switcher}
 
-          <p className="mt-1 text-xs font-bold text-ink-soft opacity-70">
-            Solde initial par caisse
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col justify-center rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft opacity-70">
-                Espèces (auto)
-              </span>
-              <span className="font-bold text-ink">{fondEspeces.toLocaleString("fr-FR")} F</span>
+        {restaurantId ? (
+          <form action={ouvrirSession} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+            <h2 className="font-bold text-ink">Ouvrir la caisse</h2>
+            <select
+              name="shift"
+              required
+              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink"
+            >
+              <option value="matin">Matin</option>
+              <option value="soir">Soir</option>
+            </select>
+
+            <p className="mt-1 text-xs font-bold text-ink-soft opacity-70">
+              Solde initial par caisse
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="number"
+                name="fond_initial_especes"
+                defaultValue={0}
+                min={0}
+                step={1}
+                placeholder="Espèces"
+                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
+              <input
+                type="number"
+                name="fond_initial_wave"
+                defaultValue={0}
+                min={0}
+                step={1}
+                placeholder="Wave"
+                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
+              <input
+                type="number"
+                name="fond_initial_orange_money"
+                defaultValue={0}
+                min={0}
+                step={1}
+                placeholder="Orange Money"
+                className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
+              />
             </div>
-            <input
-              type="number"
-              name="fond_initial_wave"
-              defaultValue={0}
-              min={0}
-              step={1}
-              placeholder="Wave"
-              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-            />
-            <input
-              type="number"
-              name="fond_initial_orange_money"
-              defaultValue={0}
-              min={0}
-              step={1}
-              placeholder="Orange Money"
-              className="rounded-[9px] border border-line bg-paper px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-soft placeholder:opacity-60"
-            />
-          </div>
-          <p className="text-xs text-ink-soft opacity-70">
-            Le fonds espèces reprend automatiquement ce qui a été gardé lors de la dernière clôture
-            contrôlée de ce restaurant.
-          </p>
-
-          <button
-            type="submit"
-            className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
-          >
-            Ouvrir
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="mt-1 rounded-[11px] bg-orange px-4 py-2.5 text-center font-bold text-white"
+            >
+              Ouvrir
+            </button>
+          </form>
+        ) : (
+          <p className="text-ink-soft">Choisissez un restaurant pour ouvrir sa caisse.</p>
+        )}
 
         {estGestion && <SectionSessionsAControler sessions={sessionsAControler} />}
 
@@ -428,7 +436,7 @@ export default async function CaissePage() {
     supabase
       .from("ingredients")
       .select("id, nom, unite")
-      .eq("restaurant_id", profile.restaurant_id!)
+      .eq("restaurant_id", session.restaurant_id)
       .eq("actif", true)
       .order("nom"),
   ]);

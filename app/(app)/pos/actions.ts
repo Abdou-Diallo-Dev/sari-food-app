@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { resolveRestaurantId } from "@/lib/restaurant-actif";
 import { encaisserCommandeInterne, MOYENS_PAIEMENT_CAISSE, type MoyenPaiementCaisse } from "@/lib/caisse";
 
 export type PanierItem = {
@@ -20,7 +21,8 @@ export async function createCommande(
   const profile = await requireProfile();
   requireRole(profile, ["admin", "manager", "caissiere"]);
 
-  if (!profile.restaurant_id) return { error: "Aucun restaurant associé à ce compte" };
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!restaurantId) return { error: "Choisissez un restaurant avant de prendre une commande" };
   if (items.length === 0) return { error: "Le panier est vide" };
   if (!MOYENS_PAIEMENT_CAISSE.some((m) => m.value === moyenPaiement)) {
     return { error: "Moyen de paiement invalide" };
@@ -47,7 +49,7 @@ export async function createCommande(
   const { data: derniereCommande } = await supabase
     .from("commandes")
     .select("numero")
-    .eq("restaurant_id", profile.restaurant_id)
+    .eq("restaurant_id", restaurantId)
     .gte("created_at", debutJournee.toISOString())
     .order("numero", { ascending: false })
     .limit(1)
@@ -57,7 +59,7 @@ export async function createCommande(
 
   const { data: commande, error } = await supabase
     .from("commandes")
-    .insert({ restaurant_id: profile.restaurant_id, canal, total, numero })
+    .insert({ restaurant_id: restaurantId, canal, total, numero })
     .select("id, numero")
     .single();
 
