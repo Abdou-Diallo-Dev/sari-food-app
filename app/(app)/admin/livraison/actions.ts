@@ -14,9 +14,11 @@ export async function createZoneLivraison(formData: FormData) {
   if (!nom || !Number.isFinite(frais) || frais < 0 || !profile.restaurant_id) return;
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("zones_livraison")
     .insert({ nom, frais, restaurant_id: profile.restaurant_id });
+
+  if (error) throw new Error(`Impossible de créer la zone : ${error.message}`);
 
   revalidatePath("/admin/livraison");
 }
@@ -31,7 +33,9 @@ export async function updateZoneLivraison(formData: FormData) {
   if (!id || !nom || !Number.isFinite(frais) || frais < 0) return;
 
   const supabase = await createClient();
-  await supabase.from("zones_livraison").update({ nom, frais }).eq("id", id);
+  const { error } = await supabase.from("zones_livraison").update({ nom, frais }).eq("id", id);
+
+  if (error) throw new Error(`Impossible d'enregistrer la zone : ${error.message}`);
 
   revalidatePath("/admin/livraison");
 }
@@ -41,7 +45,9 @@ export async function toggleZoneLivraisonActif(id: string, actif: boolean) {
   requireRole(profile, ["admin", "manager"]);
 
   const supabase = await createClient();
-  await supabase.from("zones_livraison").update({ actif }).eq("id", id);
+  const { error } = await supabase.from("zones_livraison").update({ actif }).eq("id", id);
+
+  if (error) throw new Error(`Impossible de mettre à jour la zone : ${error.message}`);
 
   revalidatePath("/admin/livraison");
 }
@@ -55,7 +61,15 @@ export async function deleteZoneLivraison(formData: FormData) {
 
   const supabase = await createClient();
   // bloqué par la contrainte de clé étrangère si des commandes y référent déjà
-  await supabase.from("zones_livraison").delete().eq("id", id);
+  const { error } = await supabase.from("zones_livraison").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(
+      error.code === "23503"
+        ? "Impossible de supprimer : des commandes utilisent déjà cette zone. Masquez-la plutôt."
+        : `Impossible de supprimer la zone : ${error.message}`,
+    );
+  }
 
   revalidatePath("/admin/livraison");
 }
