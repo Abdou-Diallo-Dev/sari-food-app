@@ -1,5 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveRestaurantId, listerRestaurants } from "@/lib/restaurant-actif";
+import { RestaurantSwitcher } from "@/components/RestaurantSwitcher";
 import {
   createIngredient,
   updateIngredient,
@@ -35,11 +37,29 @@ export default async function StockPage() {
     "admin",
   ].includes(profile.role);
 
+  const estMultiSite = !profile.restaurant_id;
+  const restaurantId = await resolveRestaurantId(profile);
+  const restaurants = estMultiSite ? await listerRestaurants() : [];
+  const switcher = estMultiSite ? (
+    <RestaurantSwitcher restaurants={restaurants} restaurantActifId={restaurantId} chemin="/stock" />
+  ) : null;
+
   const supabase = await createClient();
+
+  if (!restaurantId) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        {switcher}
+        <p className="text-ink-soft">Choisissez un restaurant pour voir son stock.</p>
+      </div>
+    );
+  }
+
   const [{ data: ingredients }, { data: demandesEnCours }] = await Promise.all([
     supabase
       .from("ingredients")
       .select("id, nom, categorie, unite, stock_actuel, seuil_alerte, stock_max, cout_unitaire, actif")
+      .eq("restaurant_id", restaurantId)
       .eq("actif", true)
       .order("nom"),
     peutDemanderAppro
@@ -61,6 +81,8 @@ export default async function StockPage() {
         <IconBox className="h-6 w-6 text-orange" />
         Stock
       </h1>
+
+      {switcher}
 
       {CATEGORIES.map((cat) => {
         const items = (ingredients ?? []).filter((i) => i.categorie === cat.value);

@@ -3,20 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { resolveRestaurantId } from "@/lib/restaurant-actif";
 import { MOYENS_PAIEMENT_CAISSE, totauxParMoyen } from "@/lib/caisse";
 import { journaliser } from "@/lib/audit";
 
 export async function ouvrirSession(formData: FormData) {
   const profile = await requireProfile();
   requireRole(profile, ["caissiere", "manager", "admin"]);
-  if (!profile.restaurant_id) return;
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!restaurantId) return;
 
   const shift = String(formData.get("shift") ?? "");
+  const fond_initial_especes = Number(formData.get("fond_initial_especes") || 0);
   const fond_initial_wave = Number(formData.get("fond_initial_wave") || 0);
   const fond_initial_orange_money = Number(formData.get("fond_initial_orange_money") || 0);
 
   if (
     !["matin", "soir"].includes(shift) ||
+    !Number.isFinite(fond_initial_especes) ||
+    fond_initial_especes < 0 ||
     !Number.isFinite(fond_initial_wave) ||
     fond_initial_wave < 0 ||
     !Number.isFinite(fond_initial_orange_money) ||
@@ -27,14 +32,6 @@ export async function ouvrirSession(formData: FormData) {
 
   const supabase = await createClient();
 
-  // Le fonds espèces n'est plus une saisie libre : il reprend automatiquement
-  // ce que le manager a gardé lors de la dernière session contrôlée de ce
-  // restaurant (0 si aucune n'a encore été contrôlée).
-  const { data: fondsDisponible } = await supabase.rpc("fonds_caisse_disponible", {
-    p_restaurant_id: profile.restaurant_id,
-  });
-  const fond_initial_especes = Number(fondsDisponible ?? 0);
-
   const { data: sessionOuverte } = await supabase
     .from("sessions_caisse")
     .select("id")
@@ -44,7 +41,7 @@ export async function ouvrirSession(formData: FormData) {
   if (sessionOuverte) return;
 
   await supabase.from("sessions_caisse").insert({
-    restaurant_id: profile.restaurant_id,
+    restaurant_id: restaurantId,
     caissiere_id: profile.id,
     shift,
     fond_initial: fond_initial_especes + fond_initial_wave + fond_initial_orange_money,

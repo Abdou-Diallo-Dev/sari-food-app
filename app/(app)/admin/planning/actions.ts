@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, requireRole } from "@/lib/auth";
+import { resolveRestaurantId } from "@/lib/restaurant-actif";
 
 const POLES = ["patisserie", "boulangerie", "fastfood"] as const;
 
@@ -12,7 +13,8 @@ export async function definirObjectifsProduction(formData: FormData) {
 
   const produitId = String(formData.get("produit_id") ?? "");
   const jour = String(formData.get("jour") ?? "");
-  if (!produitId || !jour || !profile.restaurant_id) return;
+  const restaurantId = await resolveRestaurantId(profile);
+  if (!produitId || !jour || !restaurantId) return;
 
   const supabase = await createClient();
 
@@ -37,7 +39,7 @@ export async function definirObjectifsProduction(formData: FormData) {
         pole,
         jour,
         quantite_prevue: quantite,
-        restaurant_id: profile.restaurant_id,
+        restaurant_id: restaurantId,
         cree_par: profile.id,
       },
       { onConflict: "produit_id,pole,jour" },

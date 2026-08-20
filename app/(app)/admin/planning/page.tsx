@@ -1,5 +1,7 @@
 import { requireProfile, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { resolveRestaurantId, listerRestaurants } from "@/lib/restaurant-actif";
+import { RestaurantSwitcher } from "@/components/RestaurantSwitcher";
 import { ObjectifForm } from "./objectif-form";
 import { IconTarget, IconArrowLeft } from "@/components/icons";
 
@@ -24,10 +26,18 @@ export default async function PlanningPage({
   requireRole(profile, ["admin", "manager", "pdg"]);
   const lectureSeule = profile.role === "pdg";
 
-  if (!profile.restaurant_id) {
+  const estMultiSite = !profile.restaurant_id;
+  const restaurantId = await resolveRestaurantId(profile);
+  const restaurants = estMultiSite ? await listerRestaurants() : [];
+  const switcher = estMultiSite ? (
+    <RestaurantSwitcher restaurants={restaurants} restaurantActifId={restaurantId} chemin="/admin/planning" />
+  ) : null;
+
+  if (!restaurantId) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <p className="text-ink-soft">Aucun restaurant associé à ce compte.</p>
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        {switcher}
+        <p className="text-ink-soft">Choisissez un restaurant pour voir son planning.</p>
       </div>
     );
   }
@@ -41,18 +51,18 @@ export default async function PlanningPage({
     supabase
       .from("produits")
       .select("id, nom")
-      .eq("restaurant_id", profile.restaurant_id)
+      .eq("restaurant_id", restaurantId)
       .eq("actif", true)
       .order("nom"),
     supabase
       .from("objectifs_production")
       .select("produit_id, pole, quantite_prevue")
-      .eq("restaurant_id", profile.restaurant_id)
+      .eq("restaurant_id", restaurantId)
       .eq("jour", jour),
     supabase
       .from("production_jour_contributions")
       .select("produit_id, pole, quantite_produite")
-      .eq("restaurant_id", profile.restaurant_id)
+      .eq("restaurant_id", restaurantId)
       .eq("jour", jour),
   ]);
 
@@ -88,6 +98,8 @@ export default async function PlanningPage({
         <IconTarget className="h-6 w-6 text-orange" />
         Planning production
       </h1>
+
+      {switcher}
 
       <div className="flex items-center justify-between gap-2 rounded-card border border-line bg-surface px-4 py-3">
         <a
