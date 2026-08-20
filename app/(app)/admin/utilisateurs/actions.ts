@@ -233,6 +233,43 @@ export async function migrerEmailsSariCom(): Promise<void> {
   redirect(`/admin/utilisateurs?migration=ok&count=${migres}`);
 }
 
+export async function supprimerUtilisateur(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  requireRole(profile, ["admin"]);
+
+  const id = String(formData.get("id") ?? "");
+
+  try {
+    if (!id) throw new Error("Utilisateur introuvable.");
+    if (id === profile.id) throw new Error("Vous ne pouvez pas supprimer votre propre compte.");
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("utilisateurs").delete().eq("id", id);
+
+    if (error) {
+      if (error.code === "23503") {
+        throw new Error(
+          "Impossible de supprimer : ce compte a un historique (sessions de caisse, commandes, notifications...). Désactivez-le plutôt.",
+        );
+      }
+      throw new Error("Impossible de supprimer l'utilisateur : " + error.message);
+    }
+
+    const admin = createAdminClient();
+    const { error: authError } = await admin.auth.admin.deleteUser(id);
+    if (authError) {
+      throw new Error(
+        "Le compte a été supprimé de la liste mais la suppression de l'accès de connexion a échoué : " +
+          authError.message,
+      );
+    }
+  } catch (erreur) {
+    redirigerErreur(erreur);
+  }
+
+  revalidatePath("/admin/utilisateurs");
+}
+
 export async function reinitialiserMotDePasse(formData: FormData): Promise<void> {
   const profile = await requireProfile();
   requireRole(profile, ["admin"]);

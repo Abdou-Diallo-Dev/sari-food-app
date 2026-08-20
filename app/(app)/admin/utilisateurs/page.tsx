@@ -5,10 +5,12 @@ import {
   createUtilisateur,
   updateUtilisateur,
   toggleActifUtilisateur,
+  supprimerUtilisateur,
   reinitialiserMotDePasse,
   migrerEmailsSariCom,
 } from "./actions";
 import { RolePoleSelect } from "@/components/RolePoleSelect";
+import { SupprimerUtilisateurButton } from "@/components/SupprimerUtilisateurButton";
 import type { RoleUtilisateur } from "@/lib/roles";
 
 type Utilisateur = {
@@ -245,6 +247,11 @@ export default async function UtilisateursPage({
                 >
                   {u.actif ? "Désactiver" : "Activer"}
                 </button>
+              </form>
+
+              <form action={supprimerUtilisateur}>
+                <input type="hidden" name="id" value={u.id} />
+                <SupprimerUtilisateurButton nom={u.nom} disabled={u.id === profile.id} />
               </form>
 
               <form action={reinitialiserMotDePasse} className="flex items-center gap-2">
