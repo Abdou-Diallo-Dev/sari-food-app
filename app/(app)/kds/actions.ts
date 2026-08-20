@@ -37,14 +37,21 @@ async function verifierEtRafraichirCommande(
   );
 
   if (toutesPretes) {
-    // Ne jamais rétrograder une commande déjà payée/livrée/annulée : avec le
-    // paiement intégré à la prise de commande, une commande peut être "payee"
-    // avant même que la cuisine ait terminé.
+    // Le paiement est capturé avant que la cuisine ait fini (immédiat en
+    // caisse, ou dès la matérialisation pour une commande en ligne) : la
+    // commande est donc quasi toujours déjà "payee" quand la cuisine termine.
+    // Il faut inclure "payee" dans les statuts sources, sinon cette mise à
+    // jour n'affecte jamais aucune ligne et la commande reste bloquée en
+    // 'recue'/'en_preparation' en base — c'était la cause du bug où aucune
+    // commande ne passait jamais "prête" et donc aucune notification n'était
+    // envoyée à la cuisine terminée. On exclut seulement les statuts vraiment
+    // terminaux (prete déjà atteint, livree, annulee) pour ne jamais
+    // rétrograder une commande.
     await supabase
       .from("commandes")
       .update({ statut: "prete" })
       .eq("id", ligne.commande_id)
-      .in("statut", ["recue", "en_preparation"]);
+      .in("statut", ["recue", "en_preparation", "payee"]);
   }
 
   revalidatePath("/kds");
