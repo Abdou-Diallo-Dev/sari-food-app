@@ -34,6 +34,7 @@ export async function createCommande(
     .from("sessions_caisse")
     .select("id")
     .eq("caissiere_id", profile.id)
+    .eq("restaurant_id", restaurantId)
     .eq("statut", "ouverte")
     .maybeSingle();
 

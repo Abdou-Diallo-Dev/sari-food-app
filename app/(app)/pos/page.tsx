@@ -121,7 +121,7 @@ export default async function PosPage() {
           Mode lecture seule — vue supervision. Seules les commandes du jour sont affichées ci-dessous.
         </p>
       ) : (
-        <PosClient produits={produitsPos} />
+        <PosClient key={restaurantId} produits={produitsPos} />
       )}
 
       <section className="rounded-card border border-line bg-surface p-5">

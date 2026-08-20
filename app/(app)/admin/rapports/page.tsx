@@ -85,8 +85,8 @@ export default async function RapportsPage({
   }
 
   const restaurantSelectionneId =
-    profile.role === "manager"
-      ? (profile.restaurant_id ?? null)
+    profile.role === "manager" && profile.restaurant_id
+      ? profile.restaurant_id
       : restaurantParam && restaurantsVisibles.some((r) => r.id === restaurantParam)
         ? restaurantParam
         : (restaurantsVisibles[0]?.id ?? null);

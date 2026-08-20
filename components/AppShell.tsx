@@ -69,7 +69,7 @@ export function AppShell({
           {restaurantNom && <p className="text-xs text-ink-soft opacity-70">{restaurantNom}</p>}
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 hidden lg:block">
           <GlobalSearch role={profile.role} />
         </div>
 
