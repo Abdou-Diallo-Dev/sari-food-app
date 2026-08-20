@@ -119,6 +119,25 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sections stables tant que produits ne change pas
   }, [produits]);
 
+  // Barre figée = pas de scrollbar visible (cf. className du <nav>) : c'est
+  // ce useEffect qui la fait suivre le scroll de la page, en ramenant le
+  // bouton actif dans la zone visible plutôt que de forcer la caissière à
+  // swiper elle-même pour retrouver où elle en est.
+  const poleBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const categorieBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    poleBtnRefs.current[poleActif]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [poleActif]);
+
+  useEffect(() => {
+    categorieBtnRefs.current[categorieActive]?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [categorieActive]);
+
   function allerAuPole(pole: string) {
     sectionRefs.current[pole]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -207,17 +226,16 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
         )}
 
         {!recherche && (polesVisibles.length > 1 || categoriesVisibles.length > 1) && (
-          <nav className="sticky top-0 z-10 -mx-4 flex max-w-[100vw] items-center gap-2 overflow-x-auto border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:mx-0 sm:max-w-full sm:rounded-card sm:border sm:px-3">
+          <nav className="sticky top-0 z-10 -mx-4 flex max-w-[100vw] items-center gap-2 overflow-x-auto border-b border-line bg-paper/95 px-4 py-3 backdrop-blur [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:max-w-full sm:rounded-card sm:border sm:px-3 [&::-webkit-scrollbar]:hidden">
             {polesVisibles.length > 1 &&
               polesVisibles.map((pole) => (
                 <button
                   key={pole.value}
+                  ref={(el) => {
+                    poleBtnRefs.current[pole.value] = el;
+                  }}
                   onClick={() => allerAuPole(pole.value)}
-                  className={`shrink-0 rounded-[9px] px-3 py-1.5 text-sm font-bold transition ${
-                    poleActif === pole.value
-                      ? "bg-orange text-white"
-                      : "text-ink-soft hover:bg-surface hover:text-ink"
-                  }`}
+                  className="shrink-0 rounded-[9px] px-3 py-1.5 text-sm font-bold text-ink-soft transition hover:bg-surface hover:text-ink"
                 >
                   {pole.label}
                 </button>
@@ -230,6 +248,9 @@ export function PosClient({ produits }: { produits: ProduitPos[] }) {
             {categoriesVisibles.map((cat) => (
               <button
                 key={cat.cle}
+                ref={(el) => {
+                  categorieBtnRefs.current[cat.cle] = el;
+                }}
                 onClick={() => allerALaCategorie(cat.cle)}
                 className={`shrink-0 rounded-[9px] border px-2.5 py-1 text-xs font-bold transition ${
                   categorieActive === cat.cle
