@@ -8,6 +8,7 @@ import type { Profile } from "@/lib/auth";
 import { signOut } from "@/lib/auth-actions";
 import { NotificationBell, type NotificationItem } from "@/components/NotificationBell";
 import { NotificationSound } from "@/components/NotificationSound";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { IconHome, IconLogOut, IconMenu, IconClose, IconArrowLeft } from "@/components/icons";
 import { navItemsPour } from "@/lib/nav";
@@ -32,6 +33,7 @@ export function AppShell({
   return (
     <div className="min-h-screen lg:flex">
       <NotificationSound utilisateurId={profile.id} />
+      <AutoRefresh />
       <header className="sticky top-0 z-30 flex flex-col gap-2.5 border-b border-line bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
